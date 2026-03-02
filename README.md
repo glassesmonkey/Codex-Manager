@@ -210,6 +210,34 @@ pwsh -NoLogo -NoProfile -File scripts/rebuild.ps1 -Bundle nsis -CleanDist -Porta
 3. 导出 `CODEXMANAGER_WEB_NO_OPEN=1`（默认）
 4. `cargo run -p codexmanager-start`
 
+### `scripts/install-dev-start-ui-systemd.sh`（Linux 自启动 + 崩溃自动重启）
+为源码运行生成并启用用户级 `systemd` 双服务：
+- `codexmanager-dev-service.service`（后端）
+- `codexmanager-dev-web.service`（Web）
+
+支持：
+- 开机/登录自动启动（`enable`）
+- 进程退出后自动重启（`Restart=always`）
+
+```bash
+./scripts/install-dev-start-ui-systemd.sh
+```
+
+常用管理命令：
+```bash
+systemctl --user status codexmanager-dev-service.service
+systemctl --user status codexmanager-dev-web.service
+systemctl --user restart codexmanager-dev-service.service codexmanager-dev-web.service
+systemctl --user stop codexmanager-dev-service.service codexmanager-dev-web.service
+journalctl --user -u codexmanager-dev-service.service -f
+journalctl --user -u codexmanager-dev-web.service -f
+```
+
+如果希望在“注销后”也继续运行（不依赖用户登录会话）：
+```bash
+sudo loginctl enable-linger $USER
+```
+
 ### `scripts/rebuild.ps1`（Windows）
 默认用于本地 Windows 打包；`-AllPlatforms` 模式会调用 GitHub workflow。
 

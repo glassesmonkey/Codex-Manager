@@ -218,6 +218,34 @@ Execution flow:
 3. export `CODEXMANAGER_WEB_NO_OPEN=1` (default)
 4. `cargo run -p codexmanager-start`
 
+### `scripts/install-dev-start-ui-systemd.sh` (Linux autostart + auto-restart)
+Creates and enables user-level `systemd` units for source-mode runtime:
+- `codexmanager-dev-service.service` (backend)
+- `codexmanager-dev-web.service` (web)
+
+With:
+- Autostart on boot/login (`enable`)
+- Auto-restart on process exit (`Restart=always`)
+
+```bash
+./scripts/install-dev-start-ui-systemd.sh
+```
+
+Common management commands:
+```bash
+systemctl --user status codexmanager-dev-service.service
+systemctl --user status codexmanager-dev-web.service
+systemctl --user restart codexmanager-dev-service.service codexmanager-dev-web.service
+systemctl --user stop codexmanager-dev-service.service codexmanager-dev-web.service
+journalctl --user -u codexmanager-dev-service.service -f
+journalctl --user -u codexmanager-dev-web.service -f
+```
+
+To keep running after logout (without an active login session):
+```bash
+sudo loginctl enable-linger $USER
+```
+
 ### `scripts/rebuild.ps1` (Windows)
 Primarily for local Windows packaging. `-AllPlatforms` mode dispatches GitHub workflow.
 
