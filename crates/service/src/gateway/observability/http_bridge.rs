@@ -988,6 +988,7 @@ struct AnthropicSseState {
     total_tokens: Option<i64>,
     reasoning_output_tokens: i64,
     output_text: String,
+    streamed_text_raw: String,
     stop_reason: Option<&'static str>,
 }
 
@@ -1060,7 +1061,8 @@ impl AnthropicSseReader {
                 if fragment.is_empty() {
                     return Vec::new();
                 }
-                append_output_text(&mut self.state.output_text, fragment);
+                append_output_text_raw(&mut self.state.output_text, fragment);
+                append_output_text_raw(&mut self.state.streamed_text_raw, fragment);
                 self.ensure_message_start(&mut out);
                 self.ensure_text_block_start(&mut out);
                 let text_index = self.state.text_block_index.unwrap_or(0);
@@ -1156,8 +1158,15 @@ impl AnthropicSseReader {
                 if let Some(response) = value.get("response") {
                     let mut extracted_output_text = String::new();
                     collect_response_output_text(response, &mut extracted_output_text);
-                    if !extracted_output_text.trim().is_empty() {
-                        append_output_text(&mut self.state.output_text, extracted_output_text.as_str());
+                    if let Some(pending_delta_text) = pending_completed_output_delta(
+                        self.state.streamed_text_raw.as_str(),
+                        extracted_output_text.as_str(),
+                    ) {
+                        append_output_text_raw(&mut self.state.output_text, pending_delta_text.as_str());
+                        append_output_text_raw(
+                            &mut self.state.streamed_text_raw,
+                            pending_delta_text.as_str(),
+                        );
                         self.ensure_message_start(&mut out);
                         self.ensure_text_block_start(&mut out);
                         let text_index = self.state.text_block_index.unwrap_or(0);
@@ -1169,7 +1178,7 @@ impl AnthropicSseReader {
                                 "index": text_index,
                                 "delta": {
                                     "type": "text_delta",
-                                    "text": extracted_output_text
+                                    "text": pending_delta_text
                                 }
                             }),
                         );
@@ -1338,6 +1347,26 @@ impl AnthropicSseReader {
     }
 }
 
+fn pending_completed_output_delta(streamed_text_raw: &str, completed_text: &str) -> Option<String> {
+    if completed_text.is_empty() {
+        return None;
+    }
+    if streamed_text_raw.is_empty() {
+        return Some(completed_text.to_string());
+    }
+    if streamed_text_raw == completed_text || streamed_text_raw.ends_with(completed_text) {
+        return None;
+    }
+    if completed_text.starts_with(streamed_text_raw) {
+        let tail = &completed_text[streamed_text_raw.len()..];
+        if tail.is_empty() {
+            return None;
+        }
+        return Some(tail.to_string());
+    }
+    Some(completed_text.to_string())
+}
+
 impl Read for AnthropicSseReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         loop {
@@ -1401,7 +1430,7 @@ fn tool_input_partial_json(value: Value) -> Option<String> {
 mod tests {
     use super::{
         collect_non_stream_json_from_sse_bytes, inspect_sse_frame, parse_usage_from_json,
-        parse_usage_from_sse_frame,
+        parse_usage_from_sse_frame, pending_completed_output_delta,
     };
     use serde_json::json;
 
@@ -1598,5 +1627,26 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(7));
         assert_eq!(usage.output_tokens, Some(3));
         assert_eq!(usage.total_tokens, Some(10));
+    }
+
+    #[test]
+    fn pending_completed_output_delta_skips_duplicate_full_text() {
+        let pending = pending_completed_output_delta(
+            "嘿嘿，老板夸奖收到 🤔 小七继续稳扎稳打，有事你尽管吩咐。",
+            "嘿嘿，老板夸奖收到 🤔 小七继续稳扎稳打，有事你尽管吩咐。",
+        );
+        assert_eq!(pending, None);
+    }
+
+    #[test]
+    fn pending_completed_output_delta_uses_suffix_when_completed_extends_streamed() {
+        let pending = pending_completed_output_delta("hello", "hello world");
+        assert_eq!(pending, Some(" world".to_string()));
+    }
+
+    #[test]
+    fn pending_completed_output_delta_uses_full_text_when_stream_is_unrelated() {
+        let pending = pending_completed_output_delta("partial", "completely-different");
+        assert_eq!(pending, Some("completely-different".to_string()));
     }
 }

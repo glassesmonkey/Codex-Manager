@@ -167,15 +167,13 @@ fn build_anthropic_message_from_responses(value: &Value) -> Result<Value, String
 
     let mut content_blocks = Vec::new();
     let mut has_tool_use = false;
-
-    if let Some(output_text) = value.get("output_text").and_then(Value::as_str) {
-        if !output_text.is_empty() {
-            content_blocks.push(json!({
-                "type": "text",
-                "text": output_text,
-            }));
-        }
-    }
+    let mut has_message_text_from_output_items = false;
+    let output_text_fallback = value
+        .get("output_text")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(str::to_string);
 
     if let Some(output_items) = value.get("output").and_then(Value::as_array) {
         for output_item in output_items {
@@ -200,6 +198,7 @@ fn build_anthropic_message_from_responses(value: &Value) -> Result<Value, String
                                 .unwrap_or_default();
                             if block_type == "output_text" || block_type == "text" {
                                 if let Some(text) = block_obj.get("text").and_then(Value::as_str) {
+                                    has_message_text_from_output_items = true;
                                     content_blocks.push(json!({
                                         "type": "text",
                                         "text": text,
@@ -235,6 +234,20 @@ fn build_anthropic_message_from_responses(value: &Value) -> Result<Value, String
                 }
                 _ => {}
             }
+        }
+    }
+
+    // 中文注释：responses.completed 常同时包含 output_text 与 output[].content，
+    // 若两者都写入会让下游（如 OpenClaw）看到重复文本。
+    if !has_message_text_from_output_items {
+        if let Some(output_text) = output_text_fallback {
+            content_blocks.insert(
+                0,
+                json!({
+                    "type": "text",
+                    "text": output_text,
+                }),
+            );
         }
     }
 
@@ -373,5 +386,74 @@ pub(super) fn map_finish_reason(reason: &str) -> &'static str {
         "length" => "max_tokens",
         "stop" => "end_turn",
         _ => "end_turn",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn collect_text_blocks(value: &Value) -> Vec<String> {
+        value
+            .get("content")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| {
+                        let item_obj = item.as_object()?;
+                        if item_obj.get("type").and_then(Value::as_str) != Some("text") {
+                            return None;
+                        }
+                        item_obj
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn responses_conversion_prefers_output_items_text_over_output_text_fallback() {
+        let source = json!({
+            "id": "resp_1",
+            "model": "gpt-5.3-codex",
+            "output_text": "Hello from top-level",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        { "type": "output_text", "text": "Hello from output item" }
+                    ]
+                }
+            ]
+        });
+        let converted =
+            build_anthropic_message_from_responses(&source).expect("conversion should succeed");
+        let texts = collect_text_blocks(&converted);
+        assert_eq!(texts, vec!["Hello from output item".to_string()]);
+    }
+
+    #[test]
+    fn responses_conversion_uses_output_text_when_output_items_have_no_text() {
+        let source = json!({
+            "id": "resp_2",
+            "model": "gpt-5.3-codex",
+            "output_text": "Hello from fallback",
+            "output": [
+                {
+                    "type": "function_call",
+                    "id": "call_1",
+                    "name": "test_tool",
+                    "arguments": "{}"
+                }
+            ]
+        });
+        let converted =
+            build_anthropic_message_from_responses(&source).expect("conversion should succeed");
+        let texts = collect_text_blocks(&converted);
+        assert_eq!(texts, vec!["Hello from fallback".to_string()]);
     }
 }

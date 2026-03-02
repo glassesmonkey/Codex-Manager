@@ -13,6 +13,10 @@
 本地桌面端 + 服务进程的 Codex 账号池管理器，用于统一管理账号、用量与平台 Key，并提供本地网关能力。
 
 ## 最近变更
+### 2026-03-02（最新）
+- 新增源码快捷启动脚本 `scripts/dev-start-ui.sh`：自动构建前端并设置 `CODEXMANAGER_WEB_ROOT=.../apps/dist`，可直接启动 `service + web`，避免 `web root invalid ... index.html missing`。
+- OpenClaw/Anthropic 兼容性修复：修复 `/v1/messages` 场景下文本重复问题（包括非流式与流式 completed 事件重复整段文本），减少“同一句回复重复两遍”。
+
 ### 2026-03-01（最新）
 - 设置页重构：改为单页聚合布局，新增“后台任务”配置区（轮询开关/间隔 + worker 参数），并补齐中文文案与悬浮提示。
 - 新增后台任务配置链路：前端 -> Tauri -> RPC 打通 `gateway/backgroundTasks/get|set`，可在设置页统一管理用量轮询、网关保活、令牌刷新轮询与 worker 参数。
@@ -109,6 +113,17 @@ pnpm -C apps run test:ui
 pnpm -C apps run build
 ```
 
+### 源码快捷启动 Service + UI（推荐）
+```bash
+pnpm -C apps install
+./scripts/dev-start-ui.sh
+```
+
+说明：
+- 脚本会先执行 `pnpm -C apps run build`，再设置 `CODEXMANAGER_WEB_ROOT=<repo>/apps/dist`，最后启动 `cargo run -p codexmanager-start`。
+- 默认会设置 `CODEXMANAGER_WEB_NO_OPEN=1`（不自动打开浏览器）。
+- 若你看到“前端资源未就绪 / web root invalid ... index.html missing”，优先使用该脚本启动。
+
 ### Rust
 ```bash
 cargo test --workspace
@@ -182,6 +197,19 @@ pwsh -NoLogo -NoProfile -File scripts/rebuild.ps1 -Bundle nsis -CleanDist -Porta
     - `run_verify`（默认 `true`，可关闭）
 
 ## 脚本说明
+### `scripts/dev-start-ui.sh`（源码开发快捷启动）
+用于源码环境一键拉起 `service + web`，避免手动设置静态资源路径。
+
+```bash
+./scripts/dev-start-ui.sh
+```
+
+执行流程：
+1. `pnpm -C apps run build`
+2. 导出 `CODEXMANAGER_WEB_ROOT=<repo>/apps/dist`
+3. 导出 `CODEXMANAGER_WEB_NO_OPEN=1`（默认）
+4. `cargo run -p codexmanager-start`
+
 ### `scripts/rebuild.ps1`（Windows）
 默认用于本地 Windows 打包；`-AllPlatforms` 模式会调用 GitHub workflow。
 
@@ -341,6 +369,43 @@ CODEXMANAGER_GATEWAY_KEEPALIVE_INTERVAL_SECS=180
 - 桌面端会把 service 端口保存到本地存储；环境变量更多用于首次默认值（若需强制按环境变量重置，请在 UI 手动修改端口，或清理本地存储后重启）。
 - 环境文件只会注入“当前进程尚未定义”的变量；若你已在系统环境变量中设置了同名 `CODEXMANAGER_*`，则系统环境变量优先生效。
 
+## OpenClaw 接入与优化
+### 路径与协议
+- `Anthropic-compatible`：使用 `http://localhost:48760/v1/messages`
+  - 请求体必须有 `messages` 字段（不是 `input`）。
+- `OpenAI-compatible`：使用 `http://localhost:48760/v1/chat/completions`
+- 鉴权头支持 `Authorization: Bearer <platform_key>`，也支持 `x-api-key: <platform_key>`。
+- 若请求 `/messages`（少了 `/v1`）会返回 `{"detail":"Not Found"}`。
+
+Anthropic 示例：
+```bash
+curl http://localhost:48760/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <platform_key>" \
+  -d '{
+    "model":"gpt-5.3-codex",
+    "messages":[{"role":"user","content":"hello"}],
+    "stream": false
+  }'
+```
+
+OpenAI 示例：
+```bash
+curl http://localhost:48760/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <platform_key>" \
+  -d '{
+    "model":"gpt-5.3-codex",
+    "messages":[{"role":"user","content":"hello"}],
+    "stream": false
+  }'
+```
+
+### 本次针对 OpenClaw 的优化
+- 修复非流式文本转换重复：避免 `output_text` 与 `output[].content[].text` 同时存在时重复拼接。
+- 修复流式完成事件重复：`response.completed` 只补发“尚未流出”的后缀，不再整段重复。
+- 升级后请重启 service，确保新逻辑生效。
+
 ## 常见问题
 - 授权回调失败：优先检查 `CODEXMANAGER_LOGIN_ADDR` 是否被占用，或在 UI 使用手动回调解析。
 - 模型列表/请求被挑战拦截：可尝试设置 `CODEXMANAGER_UPSTREAM_COOKIE`，或显式配置 `CODEXMANAGER_UPSTREAM_FALLBACK_BASE_URL`。
@@ -348,6 +413,7 @@ CODEXMANAGER_GATEWAY_KEEPALIVE_INTERVAL_SECS=180
 - “部分数据刷新失败，已展示可用数据”频繁出现：自动刷新场景已改为仅记录日志；手动刷新会提示失败项与示例错误。可优先检查设置页“后台任务”间隔/开关是否过激进，以及 service 日志中的失败任务名。
 - 独立运行 service/Web：若所在目录不可写（如安装目录），请设置 `CODEXMANAGER_DB_PATH` 到可写路径。
 - macOS 代理环境下请求 `502/503`：优先确认系统代理未接管本地回环请求（`localhost/127.0.0.1` 走 `DIRECT`），并确保地址使用小写 `localhost:<port>`（例如 `localhost:48760`）。
+- OpenClaw 报错 `Model context window too small (4096 tokens). Minimum is 16000.`：这是 OpenClaw 侧模型上下文窗口配置过小导致，需在 OpenClaw 的模型配置里把 context window（或 max input tokens）调到 `>=16000`。
 
 ## 账号命中规则
 - `ordered`（顺序优先）模式下，网关按账号 `sort` 升序构建候选并依次尝试（例如 `0 -> 1 -> 2 -> 3`）。

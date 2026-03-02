@@ -13,6 +13,10 @@
 A local desktop + service toolkit for managing a Codex-compatible ChatGPT account pool, usage, and platform keys, with a built-in local gateway.
 
 ## Recent Changes
+### 2026-03-02 (latest)
+- Added source quick-start script `scripts/dev-start-ui.sh`: it builds frontend assets, sets `CODEXMANAGER_WEB_ROOT=.../apps/dist`, then starts `service + web` directly, avoiding `web root invalid ... index.html missing`.
+- OpenClaw/Anthropic compatibility fix: removed duplicate text in `/v1/messages` flows (both non-stream responses and stream `response.completed` full-text duplicates).
+
 ### 2026-03-01 (latest)
 - Settings page restructure: switched to a single-sheet layout, added a dedicated "Background Tasks" section (polling toggles/intervals + worker parameters), and improved in-page hints.
 - Added background-task config chain end-to-end: frontend -> Tauri -> RPC now supports `gateway/backgroundTasks/get|set`, so usage polling, gateway keepalive, token-refresh polling, and worker parameters can be managed from Settings.
@@ -117,6 +121,17 @@ pnpm -C apps run test:ui
 pnpm -C apps run build
 ```
 
+### Source Quick Start for Service + UI (recommended)
+```bash
+pnpm -C apps install
+./scripts/dev-start-ui.sh
+```
+
+Notes:
+- The script runs `pnpm -C apps run build`, exports `CODEXMANAGER_WEB_ROOT=<repo>/apps/dist`, then starts `cargo run -p codexmanager-start`.
+- It sets `CODEXMANAGER_WEB_NO_OPEN=1` by default (no automatic browser open).
+- If you hit "frontend assets not ready / web root invalid ... index.html missing", use this script first.
+
 ### Rust
 ```bash
 cargo test --workspace
@@ -190,6 +205,19 @@ All workflows are `workflow_dispatch` only.
     - `run_verify` (default: `true`)
 
 ## Script Reference
+### `scripts/dev-start-ui.sh` (source dev quick start)
+One-command startup for `service + web` in source mode, with frontend static path prepared automatically.
+
+```bash
+./scripts/dev-start-ui.sh
+```
+
+Execution flow:
+1. `pnpm -C apps run build`
+2. export `CODEXMANAGER_WEB_ROOT=<repo>/apps/dist`
+3. export `CODEXMANAGER_WEB_NO_OPEN=1` (default)
+4. `cargo run -p codexmanager-start`
+
 ### `scripts/rebuild.ps1` (Windows)
 Primarily for local Windows packaging. `-AllPlatforms` mode dispatches GitHub workflow.
 
@@ -351,6 +379,43 @@ Notes:
 - The desktop app persists the service port in local storage; env vars mainly affect the initial default value (to force-reset, change it in UI or clear local storage and relaunch).
 - Env-file values only apply to variables that are not already defined in the current process. If you set the same `CODEXMANAGER_*` in system/user env vars, those take precedence.
 
+## OpenClaw Integration & Optimizations
+### Paths and protocol mapping
+- `Anthropic-compatible`: use `http://localhost:48760/v1/messages`
+  - Request body must include `messages` (not `input`).
+- `OpenAI-compatible`: use `http://localhost:48760/v1/chat/completions`
+- Auth headers: `Authorization: Bearer <platform_key>` or `x-api-key: <platform_key>`.
+- Calling `/messages` without `/v1` returns `{"detail":"Not Found"}`.
+
+Anthropic example:
+```bash
+curl http://localhost:48760/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: <platform_key>" \
+  -d '{
+    "model":"gpt-5.3-codex",
+    "messages":[{"role":"user","content":"hello"}],
+    "stream": false
+  }'
+```
+
+OpenAI example:
+```bash
+curl http://localhost:48760/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <platform_key>" \
+  -d '{
+    "model":"gpt-5.3-codex",
+    "messages":[{"role":"user","content":"hello"}],
+    "stream": false
+  }'
+```
+
+### OpenClaw-targeted fixes in this update
+- Non-stream de-duplication: prevents double concatenation when both `output_text` and `output[].content[].text` are present.
+- Stream completion de-duplication: `response.completed` only emits pending suffix, not the full text again.
+- Restart service after upgrade to load the new bridge/conversion behavior.
+
 ## Troubleshooting
 - OAuth callback failures: check `CODEXMANAGER_LOGIN_ADDR` conflicts, or use manual callback parsing in UI.
 - Model list/request blocked by challenge: try `CODEXMANAGER_UPSTREAM_COOKIE` or explicit `CODEXMANAGER_UPSTREAM_FALLBACK_BASE_URL`.
@@ -358,6 +423,7 @@ Notes:
 - Frequent "Partial data refresh failed, showing available data": auto-refresh now logs these as warnings instead of popping repeated toasts; manual refresh still shows failed task names and one sample error. Check Background Tasks intervals/toggles and service logs first.
 - Standalone service/Web: if the run directory is not writable, set `CODEXMANAGER_DB_PATH` to a writable path.
 - macOS with a system proxy: ensure loopback requests (`localhost/127.0.0.1`) are `DIRECT`, and use lowercase `localhost:<port>` (for example `localhost:48760`).
+- OpenClaw error `Model context window too small (4096 tokens). Minimum is 16000.`: this is an OpenClaw-side model config issue. Increase model context window (or max input tokens) to `>=16000`.
 
 ## Account Hit Rules 
 - In `ordered` mode, gateway candidates are built and attempted by account `sort` ascending (for example `0 -> 1 -> 2 -> 3`).
