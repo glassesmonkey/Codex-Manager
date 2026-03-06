@@ -399,11 +399,11 @@ CODEXMANAGER_GATEWAY_KEEPALIVE_INTERVAL_SECS=180
 
 ## OpenClaw 接入与优化
 ### 路径与协议
-- `Anthropic-compatible`：使用 `http://localhost:48760/v1/messages`
+- `Anthropic-compatible`：使用 `http://localhost:48760/v1`
   - 请求体必须有 `messages` 字段（不是 `input`）。
-- `OpenAI-compatible`：使用 `http://localhost:48760/v1/chat/completions`
+- 不支持 `OpenAI-compatible`
 - 鉴权头支持 `Authorization: Bearer <platform_key>`，也支持 `x-api-key: <platform_key>`。
-- 若请求 `/messages`（少了 `/v1`）会返回 `{"detail":"Not Found"}`。
+
 
 Anthropic 示例：
 ```bash
@@ -417,17 +417,6 @@ curl http://localhost:48760/v1/messages \
   }'
 ```
 
-OpenAI 示例：
-```bash
-curl http://localhost:48760/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <platform_key>" \
-  -d '{
-    "model":"gpt-5.3-codex",
-    "messages":[{"role":"user","content":"hello"}],
-    "stream": false
-  }'
-```
 
 ### 本次针对 OpenClaw 的优化
 - 修复非流式文本转换重复：避免 `output_text` 与 `output[].content[].text` 同时存在时重复拼接。
