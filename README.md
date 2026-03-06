@@ -11,7 +11,7 @@
 </p>
 
 本地桌面端 + 服务进程的 Codex 账号池管理器，用于统一管理账号、用量与平台 Key，并提供本地网关能力。
-
+# 本项目 fork 于 https://github.com/qxcnm/Codex-Manager ,我自己改了改用于 openclaw 使用
 ## 最近变更
 ### 2026-03-02（最新）
 - 新增源码快捷启动脚本 `scripts/dev-start-ui.sh`：自动构建前端并设置 `CODEXMANAGER_WEB_ROOT=.../apps/dist`，可直接启动 `service + web`，避免 `web root invalid ... index.html missing`。
@@ -466,8 +466,4 @@ curl http://localhost:48760/v1/chat/completions \
 - `crates/service/src/gateway/protocol_adapter/request_mapping.rs`
 - `crates/service/src/gateway/upstream/transport.rs`
 
-## 联系方式
-![个人](assets/images/personal.jpg)
-![交流群](assets/images/group.jpg)
 
-有兴趣的可以关注我微信公众号 七线牛马
