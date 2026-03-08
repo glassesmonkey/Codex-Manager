@@ -8,8 +8,10 @@ use std::time::{Duration, Instant};
 const ROUTE_STRATEGY_ENV: &str = "CODEXMANAGER_ROUTE_STRATEGY";
 const ROUTE_MODE_ORDERED: u8 = 0;
 const ROUTE_MODE_BALANCED_ROUND_ROBIN: u8 = 1;
+const ROUTE_MODE_EXPIRY_FIRST: u8 = 2;
 const ROUTE_STRATEGY_ORDERED: &str = "ordered";
 const ROUTE_STRATEGY_BALANCED: &str = "balanced";
+const ROUTE_STRATEGY_EXPIRY_FIRST: &str = "expiry_first";
 const ROUTE_HEALTH_P2C_ENABLED_ENV: &str = "CODEXMANAGER_ROUTE_HEALTH_P2C_ENABLED";
 const ROUTE_HEALTH_P2C_ORDERED_WINDOW_ENV: &str = "CODEXMANAGER_ROUTE_HEALTH_P2C_ORDERED_WINDOW";
 const ROUTE_HEALTH_P2C_BALANCED_WINDOW_ENV: &str = "CODEXMANAGER_ROUTE_HEALTH_P2C_BALANCED_WINDOW";
@@ -102,10 +104,10 @@ fn route_mode() -> u8 {
 }
 
 fn route_mode_label(mode: u8) -> &'static str {
-    if mode == ROUTE_MODE_BALANCED_ROUND_ROBIN {
-        ROUTE_STRATEGY_BALANCED
-    } else {
-        ROUTE_STRATEGY_ORDERED
+    match mode {
+        ROUTE_MODE_BALANCED_ROUND_ROBIN => ROUTE_STRATEGY_BALANCED,
+        ROUTE_MODE_EXPIRY_FIRST => ROUTE_STRATEGY_EXPIRY_FIRST,
+        _ => ROUTE_STRATEGY_ORDERED,
     }
 }
 
@@ -115,6 +117,11 @@ fn parse_route_mode(raw: &str) -> Option<u8> {
         ROUTE_STRATEGY_BALANCED | "round_robin" | "round-robin" | "rr" => {
             Some(ROUTE_MODE_BALANCED_ROUND_ROBIN)
         }
+        ROUTE_STRATEGY_EXPIRY_FIRST
+        | "expiry-first"
+        | "expiry"
+        | "usage_aware"
+        | "usage-aware" => Some(ROUTE_MODE_EXPIRY_FIRST),
         _ => None,
     }
 }
@@ -125,9 +132,10 @@ pub(crate) fn current_route_strategy() -> &'static str {
 }
 
 pub(crate) fn set_route_strategy(strategy: &str) -> Result<&'static str, String> {
+    ensure_route_config_loaded();
     let Some(mode) = parse_route_mode(strategy) else {
         return Err(
-            "invalid strategy; use ordered or balanced (aliases: round_robin/round-robin/rr)"
+            "invalid strategy; use ordered, balanced (aliases: round_robin/round-robin/rr), or expiry_first (aliases: expiry-first/expiry/usage_aware/usage-aware)"
                 .to_string(),
         );
     };
@@ -673,6 +681,16 @@ mod tests {
             "balanced"
         );
         assert_eq!(current_route_strategy(), "balanced");
+        assert_eq!(
+            set_route_strategy("usage_aware").expect("set expiry alias"),
+            "expiry_first"
+        );
+        assert_eq!(current_route_strategy(), "expiry_first");
+        assert_eq!(
+            set_route_strategy("expiry-first").expect("set dashed expiry alias"),
+            "expiry_first"
+        );
+        assert_eq!(current_route_strategy(), "expiry_first");
         assert!(set_route_strategy("unsupported").is_err());
     }
 

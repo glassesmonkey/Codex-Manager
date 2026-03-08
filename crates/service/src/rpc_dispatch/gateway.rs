@@ -7,7 +7,7 @@ pub(super) fn try_handle(req: &JsonRpcRequest) -> Option<JsonRpcResponse> {
             let strategy = crate::gateway::current_route_strategy();
             super::as_json(serde_json::json!({
                 "strategy": strategy,
-                "options": ["ordered", "balanced"],
+                "options": ["ordered", "balanced", "expiry_first"],
                 "manualPreferredAccountId": crate::gateway::manual_preferred_account(),
             }))
         }

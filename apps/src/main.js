@@ -92,6 +92,7 @@ const UI_LOW_TRANSPARENCY_CARD_ID = "settingsLowTransparencyCard";
 const ROUTE_STRATEGY_STORAGE_KEY = "codexmanager.gateway.route_strategy";
 const ROUTE_STRATEGY_ORDERED = "ordered";
 const ROUTE_STRATEGY_BALANCED = "balanced";
+const ROUTE_STRATEGY_EXPIRY_FIRST = "expiry_first";
 const CPA_NO_COOKIE_HEADER_MODE_STORAGE_KEY = "codexmanager.gateway.cpa_no_cookie_header_mode";
 const BACKGROUND_TASKS_SETTINGS_STORAGE_KEY = "codexmanager.gateway.background_tasks";
 const DEFAULT_BACKGROUND_TASKS_SETTINGS = {
@@ -296,18 +297,31 @@ function normalizeRouteStrategy(strategy) {
   if (["balanced", "round_robin", "round-robin", "rr"].includes(raw)) {
     return ROUTE_STRATEGY_BALANCED;
   }
+  if (["expiry_first", "expiry-first", "expiry", "usage_aware", "usage-aware"].includes(raw)) {
+    return ROUTE_STRATEGY_EXPIRY_FIRST;
+  }
   return ROUTE_STRATEGY_ORDERED;
 }
 
 function routeStrategyLabel(strategy) {
-  return normalizeRouteStrategy(strategy) === ROUTE_STRATEGY_BALANCED ? "均衡轮询" : "顺序优先";
+  const normalized = normalizeRouteStrategy(strategy);
+  if (normalized === ROUTE_STRATEGY_BALANCED) {
+    return "均衡轮询";
+  }
+  if (normalized === ROUTE_STRATEGY_EXPIRY_FIRST) {
+    return "7天到期优先";
+  }
+  return "顺序优先";
 }
 
 function updateRouteStrategyHint(strategy) {
   if (!dom.routeStrategyHint) return;
   let hintText = "按账号顺序优先请求，优先使用可用账号（不可用账号不会参与选路）。";
-  if (normalizeRouteStrategy(strategy) === ROUTE_STRATEGY_BALANCED) {
+  const normalized = normalizeRouteStrategy(strategy);
+  if (normalized === ROUTE_STRATEGY_BALANCED) {
     hintText = "按 Key + 模型 均衡轮询起点，优先使用可用账号（不可用账号不会参与选路）。";
+  } else if (normalized === ROUTE_STRATEGY_EXPIRY_FIRST) {
+    hintText = "优先使用 7 天额度重置时间更近的账号；没有 7 天窗口数据的账号会回退到常规顺序。";
   }
   dom.routeStrategyHint.title = hintText;
   dom.routeStrategyHint.setAttribute("aria-label", `网关选路策略说明：${hintText}`);
@@ -343,9 +357,17 @@ function initRouteStrategySetting() {
   setRouteStrategySelect(mode);
 }
 
-function resolveRouteStrategyFromPayload(payload) {
+function resolveRouteStrategyFromPayload(payload, fallback = ROUTE_STRATEGY_ORDERED) {
   const picked = pickFirstValue(payload, ["strategy", "result.strategy"]);
-  return normalizeRouteStrategy(picked);
+  if (picked == null) {
+    return normalizeRouteStrategy(fallback);
+  }
+  const raw = String(picked).trim().toLowerCase();
+  const normalized = normalizeRouteStrategy(raw);
+  if (normalized === ROUTE_STRATEGY_ORDERED && !["ordered", "order", "priority", "sequential"].includes(raw)) {
+    return normalizeRouteStrategy(fallback);
+  }
+  return normalized;
 }
 
 async function applyRouteStrategyToService(strategy, { silent = true } = {}) {
@@ -363,7 +385,7 @@ async function applyRouteStrategyToService(strategy, { silent = true } = {}) {
       return false;
     }
     const response = await serviceGatewayRouteStrategySet(normalized);
-    const applied = resolveRouteStrategyFromPayload(response);
+    const applied = resolveRouteStrategyFromPayload(response, normalized);
     saveRouteStrategySetting(applied);
     setRouteStrategySelect(applied);
     routeStrategySyncedProbeId = state.serviceProbeId;
@@ -401,7 +423,7 @@ async function syncRouteStrategyOnStartup() {
 
   try {
     const response = await serviceGatewayRouteStrategyGet();
-    const strategy = resolveRouteStrategyFromPayload(response);
+    const strategy = resolveRouteStrategyFromPayload(response, readRouteStrategySetting());
     saveRouteStrategySetting(strategy);
     setRouteStrategySelect(strategy);
     routeStrategySyncedProbeId = state.serviceProbeId;
@@ -1720,8 +1742,6 @@ function bootstrap() {
 }
 
 window.addEventListener("DOMContentLoaded", bootstrap);
-
-
 
 
 

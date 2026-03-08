@@ -325,7 +325,7 @@ pwsh -NoLogo -NoProfile -File scripts/bump-version.ps1 -Version 0.1.3
 | `CODEXMANAGER_UPSTREAM_FALLBACK_BASE_URL` | 自动推断 | 明确指定 fallback 上游。若未设置且主上游是 ChatGPT backend，则默认 fallback 到 `https://api.openai.com/v1`。 |
 | `CODEXMANAGER_UPSTREAM_COOKIE` | 未设置 | 上游 Cookie（主要用于 Cloudflare/WAF challenge 场景）。 |
 | `CODEXMANAGER_CPA_NO_COOKIE_HEADER_MODE` | `0` | 启用请求头收敛策略：默认不发 `x-codex-turn-state`/`Conversation_id`/固定 `Openai-Beta`/`Chatgpt-Account-Id`，降低 Cloudflare/WAF 拦截概率。可在设置页切换。 |
-| `CODEXMANAGER_ROUTE_STRATEGY` | `ordered` | 网关账号选路策略：默认 `ordered`（按账号顺序优先，失败再下一个）；可设 `balanced`/`round_robin`/`rr` 启用按 `Key+模型` 的均衡轮询起点。 |
+| `CODEXMANAGER_ROUTE_STRATEGY` | `ordered` | 网关账号选路策略：默认 `ordered`（按账号顺序优先，失败再下一个）；可设 `balanced`/`round_robin`/`rr` 启用按 `Key+模型` 的均衡轮询起点，或设 `expiry_first`（兼容 `expiry-first`/`usage_aware`）优先消耗 7 天内更快重置的额度窗口。 |
 | `CODEXMANAGER_UPSTREAM_CONNECT_TIMEOUT_SECS` | `15` | 上游连接阶段超时（秒）。 |
 | `CODEXMANAGER_UPSTREAM_TOTAL_TIMEOUT_MS` | `120000` | 上游单次请求总超时（毫秒）。设为 `0` 表示关闭总超时。 |
 | `CODEXMANAGER_UPSTREAM_STREAM_TIMEOUT_MS` | `300000` | 上游流式请求超时（毫秒）。设为 `0` 表示关闭流式超时。 |
@@ -454,5 +454,4 @@ curl http://localhost:48760/v1/messages \
 对应实现可见：
 - `crates/service/src/gateway/protocol_adapter/request_mapping.rs`
 - `crates/service/src/gateway/upstream/transport.rs`
-
 

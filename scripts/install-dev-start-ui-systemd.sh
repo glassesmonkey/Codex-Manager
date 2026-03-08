@@ -14,6 +14,30 @@ WEB_UNIT_PATH="${SYSTEMD_USER_DIR}/${WEB_UNIT}"
 PATH_VALUE="${PATH}"
 CARGO_BIN=""
 PNPM_BIN=""
+PROXY_ENV_BLOCK=""
+
+escape_systemd_env_value() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '%s' "${value}"
+}
+
+build_optional_proxy_env_block() {
+  local block=""
+  local key=""
+  local value=""
+  local escaped=""
+  for key in HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy; do
+    value="${!key-}"
+    if [[ -z "${value}" ]]; then
+      continue
+    fi
+    escaped="$(escape_systemd_env_value "${value}")"
+    block+="Environment=\"${key}=${escaped}\""$'\n'
+  done
+  printf '%s' "${block}"
+}
 
 if ! command -v systemctl >/dev/null 2>&1; then
   echo "[install-systemd] error: systemctl not found. This script requires Linux systemd." >&2
@@ -32,6 +56,7 @@ fi
 
 CARGO_BIN="$(command -v cargo)"
 PNPM_BIN="$(command -v pnpm)"
+PROXY_ENV_BLOCK="$(build_optional_proxy_env_block)"
 
 if [[ ! -x "${START_SCRIPT}" ]]; then
   echo "[install-systemd] error: start script is missing or not executable: ${START_SCRIPT}" >&2
@@ -50,8 +75,8 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 WorkingDirectory=${ROOT_DIR}
-Environment=PATH=${PATH_VALUE}
-ExecStart=${CARGO_BIN} run -p codexmanager-service
+Environment="PATH=${PATH_VALUE}"
+${PROXY_ENV_BLOCK}ExecStart=${CARGO_BIN} run -p codexmanager-service
 Restart=always
 RestartSec=5
 
@@ -69,10 +94,10 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 WorkingDirectory=${ROOT_DIR}
-Environment=PATH=${PATH_VALUE}
-Environment=CODEXMANAGER_WEB_ROOT=${ROOT_DIR}/apps/dist
-Environment=CODEXMANAGER_WEB_NO_OPEN=1
-Environment=CODEXMANAGER_WEB_NO_SPAWN_SERVICE=1
+Environment="PATH=${PATH_VALUE}"
+${PROXY_ENV_BLOCK}Environment="CODEXMANAGER_WEB_ROOT=${ROOT_DIR}/apps/dist"
+Environment="CODEXMANAGER_WEB_NO_OPEN=1"
+Environment="CODEXMANAGER_WEB_NO_SPAWN_SERVICE=1"
 ExecStartPre=${PNPM_BIN} -C apps run build
 ExecStart=${CARGO_BIN} run -p codexmanager-web
 Restart=always

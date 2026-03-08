@@ -88,7 +88,7 @@ pub(crate) fn record_http_queue_dequeue(is_stream_queue: bool) {
 pub(crate) fn record_http_queue_enqueue_failure() {
     metrics::record_http_queue_enqueue_failure();
 }
-use selection::collect_gateway_candidates;
+use selection::{collect_gateway_candidates, invalidate_candidate_cache};
 use upstream::candidates::prepare_gateway_candidates;
 use failover::should_failover_from_cached_snapshot;
 #[cfg(test)]
@@ -137,6 +137,7 @@ pub(crate) fn current_route_strategy() -> &'static str {
 pub(crate) fn set_route_strategy(strategy: &str) -> Result<&'static str, String> {
     let applied = route_hint::set_route_strategy(strategy)?;
     std::env::set_var("CODEXMANAGER_ROUTE_STRATEGY", applied);
+    invalidate_candidate_cache();
     Ok(applied)
 }
 
@@ -182,5 +183,4 @@ pub(crate) fn clear_manual_preferred_account_if(account_id: &str) -> bool {
 #[cfg(test)]
 #[path = "../../tests/gateway/availability/mod.rs"]
 mod availability_tests;
-
 

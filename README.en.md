@@ -335,7 +335,7 @@ It updates:
 | `CODEXMANAGER_UPSTREAM_FALLBACK_BASE_URL` | Auto-inferred | Explicit fallback upstream. If unset and primary is ChatGPT backend, fallback defaults to `https://api.openai.com/v1`. |
 | `CODEXMANAGER_UPSTREAM_COOKIE` | Unset | Upstream Cookie, mainly for Cloudflare/WAF challenge scenarios. |
 | `CODEXMANAGER_CPA_NO_COOKIE_HEADER_MODE` | `0` | Enable header compaction policy: suppress `x-codex-turn-state`/`Conversation_id`/fixed `Openai-Beta`/`Chatgpt-Account-Id` by default to reduce Cloudflare/WAF challenges. Also available in Settings UI. |
-| `CODEXMANAGER_ROUTE_STRATEGY` | `ordered` | Gateway account routing strategy: default `ordered` (follow account order, fail over to next on failure); set `balanced`/`round_robin`/`rr` to enable key+model-based balanced round-robin starts. |
+| `CODEXMANAGER_ROUTE_STRATEGY` | `ordered` | Gateway account routing strategy: default `ordered` (follow account order, fail over to next on failure); set `balanced`/`round_robin`/`rr` to enable key+model-based balanced round-robin starts, or `expiry_first` (also accepts `expiry-first`/`usage_aware`) to prefer accounts whose 7-day window resets sooner. |
 | `CODEXMANAGER_UPSTREAM_CONNECT_TIMEOUT_SECS` | `15` | Upstream connect timeout in seconds. |
 | `CODEXMANAGER_UPSTREAM_TOTAL_TIMEOUT_MS` | `120000` | Upstream total timeout per request in milliseconds. Set `0` to disable. |
 | `CODEXMANAGER_UPSTREAM_STREAM_TIMEOUT_MS` | `300000` | Upstream stream timeout in milliseconds. Set `0` to disable. |
