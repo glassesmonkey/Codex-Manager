@@ -1,4 +1,4 @@
-import { formatResetLabel, remainingPercent } from "../utils/format";
+import { formatResetLabel, remainingPercent } from "../utils/format.js";
 
 export function buildProgressLine(label, usedPercent, resetsAt, secondary) {
   const remain = remainingPercent(usedPercent);

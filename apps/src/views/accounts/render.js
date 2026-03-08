@@ -2,6 +2,7 @@ import { state } from "../../state.js";
 import { dom } from "../../ui/dom.js";
 import { formatLimitLabel, formatTs } from "../../utils/format.js";
 import { getRefreshAllProgress } from "../../services/management/account-actions.js";
+import { buildProgressLine } from "../dashboard-progress.js";
 import {
   buildAccountDerivedMap,
   buildGroupFilterOptions,
@@ -123,23 +124,6 @@ function getAccountDerivedMapCached(accounts, usageSource) {
   return derivedCacheMap;
 }
 
-function renderMiniUsageLine(label, remain, secondary) {
-  const line = document.createElement("div");
-  line.className = "progress-line";
-  if (secondary) line.classList.add("secondary");
-  const text = document.createElement("span");
-  text.textContent = `${label} ${remain == null ? "--" : `${remain}%`}`;
-  const track = document.createElement("div");
-  track.className = "track";
-  const fill = document.createElement("div");
-  fill.className = "fill";
-  fill.style.width = remain == null ? "0%" : `${remain}%`;
-  track.appendChild(fill);
-  line.appendChild(text);
-  line.appendChild(track);
-  return line;
-}
-
 function createStatusTag(status) {
   const statusTag = document.createElement("span");
   statusTag.className = "status-tag";
@@ -174,13 +158,13 @@ function createAccountCell(account, accountDerived) {
   if (hasPrimaryWindow) {
     const primaryLabel = formatLimitLabel(usage?.windowMinutes, "5小时");
     mini.appendChild(
-      renderMiniUsageLine(primaryLabel, primaryRemain, false),
+      buildProgressLine(primaryLabel, usage?.usedPercent, usage?.resetsAt, false),
     );
   }
 
   if (hasSecondaryWindow) {
     mini.appendChild(
-      renderMiniUsageLine("7天", secondaryRemain, true),
+      buildProgressLine("7天", usage?.secondaryUsedPercent, usage?.secondaryResetsAt, true),
     );
   }
   accountWrap.appendChild(mini);
@@ -306,7 +290,7 @@ function updateStatusTag(node, status) {
   if (next.level === "unknown") node.classList.add("status-unknown");
 }
 
-function updateMiniUsage(mini, usage, primaryRemain, secondaryRemain) {
+function updateMiniUsage(mini, usage) {
   if (!mini) return;
   const safeUsage = usage || null;
   const hasPrimaryWindow = safeUsage?.usedPercent != null && safeUsage?.windowMinutes != null;
@@ -317,10 +301,14 @@ function updateMiniUsage(mini, usage, primaryRemain, secondaryRemain) {
   mini.textContent = "";
   if (hasPrimaryWindow) {
     const primaryLabel = formatLimitLabel(safeUsage?.windowMinutes, "5小时");
-    mini.appendChild(renderMiniUsageLine(primaryLabel, primaryRemain ?? null, false));
+    mini.appendChild(
+      buildProgressLine(primaryLabel, safeUsage?.usedPercent, safeUsage?.resetsAt, false),
+    );
   }
   if (hasSecondaryWindow) {
-    mini.appendChild(renderMiniUsageLine("7天", secondaryRemain ?? null, true));
+    mini.appendChild(
+      buildProgressLine("7天", safeUsage?.secondaryUsedPercent, safeUsage?.secondaryResetsAt, true),
+    );
   }
 }
 
@@ -366,7 +354,7 @@ function updateAccountRow(row, account, accountDerivedMap, { onDelete }) {
   if (title) title.textContent = account.label || "-";
   if (meta) meta.textContent = `${account.id || "-"}`;
   const mini = cellAccount?.querySelector?.(".mini-usage");
-  updateMiniUsage(mini, accountDerived.usage, accountDerived.primaryRemain, accountDerived.secondaryRemain);
+  updateMiniUsage(mini, accountDerived.usage);
 
   // Column 1: group
   const cellGroup = row.children[1];
