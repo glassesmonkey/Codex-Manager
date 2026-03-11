@@ -1,4 +1,6 @@
-use super::{mark_usage_unreachable_if_needed, record_usage_refresh_failure, should_retry_with_refresh};
+use super::{
+    mark_usage_unreachable_if_needed, record_usage_refresh_failure, should_retry_with_refresh,
+};
 use crate::account_availability::Availability;
 use crate::usage_snapshot_store::apply_status_from_snapshot;
 use codexmanager_core::storage::{now_ts, Account, Storage, UsageSnapshotRecord};
@@ -185,4 +187,3 @@ fn usage_refresh_failure_events_are_throttled_by_error_class() {
     );
     assert_eq!(storage.event_count().expect("count events"), 2);
 }
-

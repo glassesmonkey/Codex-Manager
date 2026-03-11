@@ -214,7 +214,8 @@ mod tests {
     fn lookup_evicts_expired_target_entry_without_full_scan() {
         let _guard = cooldown_test_guard();
         clear_account_cooldown_for_tests();
-        let lock = ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
+        let lock =
+            ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
         let mut state = lock.lock().expect("cooldown state lock");
         let now = now_ts();
         state.entries.insert("acc-a".to_string(), now - 1);
@@ -232,7 +233,8 @@ mod tests {
     fn mark_path_cleanup_prunes_expired_entries() {
         let _guard = cooldown_test_guard();
         clear_account_cooldown_for_tests();
-        let lock = ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
+        let lock =
+            ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
         let mut state = lock.lock().expect("cooldown state lock");
         let now = now_ts();
         state.entries.insert("stale".to_string(), now - 1);
@@ -259,7 +261,8 @@ mod tests {
     fn rate_limited_mark_increments_and_success_clear_decays_offense() {
         let _guard = cooldown_test_guard();
         clear_account_cooldown_for_tests();
-        let lock = ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
+        let lock =
+            ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
         mark_account_cooldown("acc", CooldownReason::RateLimited);
         {
             let state = lock.lock().expect("cooldown state lock");
@@ -289,7 +292,8 @@ mod tests {
     fn non_rate_limited_mark_keeps_existing_behavior_without_offense_count() {
         let _guard = cooldown_test_guard();
         clear_account_cooldown_for_tests();
-        let lock = ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
+        let lock =
+            ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
         mark_account_cooldown("acc", CooldownReason::Default);
 
         let state = lock.lock().expect("cooldown state lock");
@@ -301,7 +305,8 @@ mod tests {
     fn rate_limited_offense_resets_after_quiet_period() {
         let _guard = cooldown_test_guard();
         clear_account_cooldown_for_tests();
-        let lock = ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
+        let lock =
+            ACCOUNT_COOLDOWN_UNTIL.get_or_init(|| Mutex::new(AccountCooldownState::default()));
         let now = now_ts();
         {
             let mut state = lock.lock().expect("cooldown state lock");

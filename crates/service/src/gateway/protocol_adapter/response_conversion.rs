@@ -4,11 +4,16 @@ use crate::gateway::request_helpers::is_html_content_type;
 
 use super::ResponseAdapter;
 use json_conversion::convert_openai_json_to_anthropic;
+use openai_chat_conversion::{
+    convert_responses_json_to_chat_json, convert_responses_json_to_chat_sse,
+    convert_responses_sse_to_chat_json, convert_responses_sse_to_chat_sse,
+};
 use sse_conversion::{
     convert_anthropic_json_to_sse, convert_anthropic_sse_to_json, convert_openai_sse_to_anthropic,
 };
 
 mod json_conversion;
+mod openai_chat_conversion;
 mod sse_conversion;
 
 pub(super) fn adapt_upstream_response(
@@ -36,13 +41,47 @@ pub(super) fn adapt_upstream_response(
                 return Err("upstream returned html challenge".to_string());
             }
             let is_json = upstream_content_type
-                .map(|value| value.trim().to_ascii_lowercase().starts_with("application/json"))
+                .map(|value| {
+                    value
+                        .trim()
+                        .to_ascii_lowercase()
+                        .starts_with("application/json")
+                })
                 .unwrap_or(false);
             if is_json {
                 let (anthropic_json, _) = convert_openai_json_to_anthropic(body)?;
                 return convert_anthropic_json_to_sse(&anthropic_json);
             }
             convert_openai_sse_to_anthropic(body)
+        }
+        ResponseAdapter::OpenAiChatJson => {
+            if upstream_content_type.is_some_and(is_html_content_type) {
+                return Err("upstream returned html challenge".to_string());
+            }
+            let is_sse = upstream_content_type
+                .map(|value| value.to_ascii_lowercase().contains("text/event-stream"))
+                .unwrap_or(false);
+            if is_sse || looks_like_sse_payload(body) {
+                return convert_responses_sse_to_chat_json(body);
+            }
+            convert_responses_json_to_chat_json(body)
+        }
+        ResponseAdapter::OpenAiChatSse => {
+            if upstream_content_type.is_some_and(is_html_content_type) {
+                return Err("upstream returned html challenge".to_string());
+            }
+            let is_json = upstream_content_type
+                .map(|value| {
+                    value
+                        .trim()
+                        .to_ascii_lowercase()
+                        .starts_with("application/json")
+                })
+                .unwrap_or(false);
+            if is_json {
+                return convert_responses_json_to_chat_sse(body);
+            }
+            convert_responses_sse_to_chat_sse(body)
         }
     }
 }
@@ -55,7 +94,10 @@ pub(super) fn build_anthropic_error_body(message: &str) -> Vec<u8> {
             "message": message,
         }
     }))
-    .unwrap_or_else(|_| b"{\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"unknown error\"}}".to_vec())
+    .unwrap_or_else(|_| {
+        b"{\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"unknown error\"}}"
+            .to_vec()
+    })
 }
 
 fn looks_like_sse_payload(body: &[u8]) -> bool {

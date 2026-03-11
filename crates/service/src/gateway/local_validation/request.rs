@@ -1,5 +1,5 @@
-use codexmanager_core::storage::ApiKey;
 use bytes::Bytes;
+use codexmanager_core::storage::ApiKey;
 use reqwest::Method;
 use tiny_http::Request;
 
@@ -37,11 +37,24 @@ pub(super) fn build_local_validation_result(
         body,
     )
     .map_err(|err| LocalValidationError::new(400, err))?;
-    let path = adapted.path;
+    let mut path = adapted.path;
     body = adapted.body;
+    let mut response_adapter = adapted.response_adapter;
     // 中文注释：下游调用方的 stream 语义应在请求改写前确定；
     // 否则上游兼容改写（例如 /responses 强制 stream=true）会污染下游响应模式判断。
     let client_request_meta = super::super::parse_request_metadata(&body);
+    if let Some(openai_chat_compat) = super::super::maybe_adapt_openai_chat_compat(
+        &path,
+        body.to_vec(),
+        client_request_meta.is_stream,
+        api_key.upstream_base_url.as_deref(),
+    )
+    .map_err(|err| LocalValidationError::new(400, err))?
+    {
+        path = openai_chat_compat.path;
+        body = openai_chat_compat.body;
+        response_adapter = openai_chat_compat.response_adapter;
+    }
     let (effective_model, effective_reasoning) = resolve_effective_request_overrides(&api_key);
     body = super::super::apply_request_overrides(
         &path,
@@ -76,7 +89,7 @@ pub(super) fn build_local_validation_result(
         protocol_type: api_key.protocol_type,
         upstream_base_url: api_key.upstream_base_url,
         static_headers_json: api_key.static_headers_json,
-        response_adapter: adapted.response_adapter,
+        response_adapter,
         request_method,
         key_id: api_key.id,
         model_for_log,
@@ -89,7 +102,11 @@ pub(super) fn build_local_validation_result(
 mod tests {
     use super::*;
 
-    fn sample_api_key(protocol_type: &str, model_slug: Option<&str>, reasoning: Option<&str>) -> ApiKey {
+    fn sample_api_key(
+        protocol_type: &str,
+        model_slug: Option<&str>,
+        reasoning: Option<&str>,
+    ) -> ApiKey {
         ApiKey {
             id: "gk_test".to_string(),
             name: Some("test".to_string()),
@@ -109,11 +126,7 @@ mod tests {
 
     #[test]
     fn anthropic_key_keeps_empty_overrides() {
-        let api_key = sample_api_key(
-            crate::apikey_profile::PROTOCOL_ANTHROPIC_NATIVE,
-            None,
-            None,
-        );
+        let api_key = sample_api_key(crate::apikey_profile::PROTOCOL_ANTHROPIC_NATIVE, None, None);
         let (model, reasoning) = resolve_effective_request_overrides(&api_key);
         assert_eq!(model, None);
         assert_eq!(reasoning, None);

@@ -23,7 +23,9 @@ struct CandidateSnapshotCache {
     candidates: Vec<(Account, Token)>,
 }
 
-pub(crate) fn collect_gateway_candidates(storage: &Storage) -> Result<Vec<(Account, Token)>, String> {
+pub(crate) fn collect_gateway_candidates(
+    storage: &Storage,
+) -> Result<Vec<(Account, Token)>, String> {
     if let Some(cached) = read_candidate_cache() {
         return Ok(cached);
     }
@@ -64,11 +66,7 @@ fn collect_gateway_candidates_uncached(storage: &Storage) -> Result<Vec<(Account
         }
         let mut candidate_account = account.clone();
         let (chatgpt_account_id, workspace_id) = derive_account_meta(&token);
-        if patch_account_meta_in_place(
-            &mut candidate_account,
-            chatgpt_account_id,
-            workspace_id,
-        ) {
+        if patch_account_meta_in_place(&mut candidate_account, chatgpt_account_id, workspace_id) {
             candidate_account.updated_at = now_ts();
             let _ = storage.insert_account(&candidate_account);
         }
@@ -281,7 +279,9 @@ fn clear_candidate_cache_for_tests() {
 
 #[cfg(test)]
 mod tests {
-    use super::{clear_candidate_cache_for_tests, collect_gateway_candidates, CANDIDATE_CACHE_TTL_ENV};
+    use super::{
+        clear_candidate_cache_for_tests, collect_gateway_candidates, CANDIDATE_CACHE_TTL_ENV,
+    };
     use codexmanager_core::storage::{now_ts, Account, Storage, Token, UsageSnapshotRecord};
     use std::sync::Mutex;
 
@@ -442,8 +442,20 @@ mod tests {
 
         let now = now_ts();
         let accounts = vec![
-            ("acc-far", 0_i64, Some(30.0), Some(10080), Some(now + 3 * 24 * 60 * 60)),
-            ("acc-soon", 1_i64, Some(85.0), Some(10080), Some(now + 2 * 60 * 60)),
+            (
+                "acc-far",
+                0_i64,
+                Some(30.0),
+                Some(10080),
+                Some(now + 3 * 24 * 60 * 60),
+            ),
+            (
+                "acc-soon",
+                1_i64,
+                Some(85.0),
+                Some(10080),
+                Some(now + 2 * 60 * 60),
+            ),
             ("acc-fallback", 2_i64, Some(10.0), Some(300), None),
         ];
         for (id, sort, used_percent, window_minutes, resets_at) in &accounts {

@@ -178,6 +178,3 @@ mod tests {
         assert!(!should_trigger_stateless_retry(429, true, true));
     }
 }
-
-
-

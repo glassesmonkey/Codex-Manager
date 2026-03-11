@@ -130,13 +130,21 @@ fn build_anthropic_message_from_chat_completions(value: &Value) -> Result<Value,
     let input_tokens = value
         .get("usage")
         .and_then(|usage| usage.get("prompt_tokens"))
-        .or_else(|| value.get("usage").and_then(|usage| usage.get("input_tokens")))
+        .or_else(|| {
+            value
+                .get("usage")
+                .and_then(|usage| usage.get("input_tokens"))
+        })
         .and_then(Value::as_i64)
         .unwrap_or(0);
     let output_tokens = value
         .get("usage")
         .and_then(|usage| usage.get("completion_tokens"))
-        .or_else(|| value.get("usage").and_then(|usage| usage.get("output_tokens")))
+        .or_else(|| {
+            value
+                .get("usage")
+                .and_then(|usage| usage.get("output_tokens"))
+        })
         .and_then(Value::as_i64)
         .unwrap_or(0);
 
@@ -261,13 +269,21 @@ fn build_anthropic_message_from_responses(value: &Value) -> Result<Value, String
     let input_tokens = value
         .get("usage")
         .and_then(|usage| usage.get("input_tokens"))
-        .or_else(|| value.get("usage").and_then(|usage| usage.get("prompt_tokens")))
+        .or_else(|| {
+            value
+                .get("usage")
+                .and_then(|usage| usage.get("prompt_tokens"))
+        })
         .and_then(Value::as_i64)
         .unwrap_or(0);
     let output_tokens = value
         .get("usage")
         .and_then(|usage| usage.get("output_tokens"))
-        .or_else(|| value.get("usage").and_then(|usage| usage.get("completion_tokens")))
+        .or_else(|| {
+            value
+                .get("usage")
+                .and_then(|usage| usage.get("completion_tokens"))
+        })
         .and_then(Value::as_i64)
         .unwrap_or(0);
 
@@ -291,7 +307,6 @@ fn build_anthropic_message_from_responses(value: &Value) -> Result<Value, String
         }
     }))
 }
-
 
 fn extract_openai_text_content(value: &Value) -> Result<String, String> {
     if value.is_null() {
@@ -321,7 +336,6 @@ fn extract_openai_text_content(value: &Value) -> Result<String, String> {
     Ok(parts.join(""))
 }
 
-
 pub(super) fn parse_tool_arguments_as_object(raw: &str) -> Value {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -343,7 +357,6 @@ pub(super) fn parse_tool_arguments_as_object(raw: &str) -> Value {
     }
 }
 
-
 fn extract_function_call_input_object(item_obj: &serde_json::Map<String, Value>) -> Value {
     let Some(arguments_raw) = extract_function_call_arguments_raw(item_obj) else {
         return json!({});
@@ -354,7 +367,13 @@ fn extract_function_call_input_object(item_obj: &serde_json::Map<String, Value>)
 pub(super) fn extract_function_call_arguments_raw(
     item_obj: &serde_json::Map<String, Value>,
 ) -> Option<String> {
-    const ARGUMENT_KEYS: [&str; 5] = ["arguments", "input", "arguments_json", "parsed_arguments", "args"];
+    const ARGUMENT_KEYS: [&str; 5] = [
+        "arguments",
+        "input",
+        "arguments_json",
+        "parsed_arguments",
+        "args",
+    ];
     for key in ARGUMENT_KEYS {
         let Some(value) = item_obj.get(key) else {
             continue;
@@ -378,7 +397,6 @@ pub(super) fn extract_function_call_arguments_raw(
     }
     None
 }
-
 
 pub(super) fn map_finish_reason(reason: &str) -> &'static str {
     match reason {

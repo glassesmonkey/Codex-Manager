@@ -12,8 +12,7 @@ static UPSTREAM_FALLBACK_BASE_URL: OnceLock<RwLock<Option<String>>> = OnceLock::
 pub(in super::super) fn normalize_upstream_base_url(base: &str) -> String {
     let mut normalized = base.trim().trim_end_matches('/').to_string();
     let lower = normalized.to_ascii_lowercase();
-    if (lower.starts_with("https://chatgpt.com")
-        || lower.starts_with("https://chat.openai.com"))
+    if (lower.starts_with("https://chatgpt.com") || lower.starts_with("https://chat.openai.com"))
         && !lower.contains("/backend-api")
     {
         // 中文注释：对齐官方客户端的主机归一化，避免仅填域名时落到错误路径。
@@ -29,8 +28,11 @@ pub(in super::super) fn resolve_upstream_base_url() -> String {
 
 pub(in super::super) fn resolve_upstream_fallback_base_url(primary_base: &str) -> Option<String> {
     ensure_config_loaded();
-    crate::lock_utils::read_recover(upstream_fallback_base_url_cell(), "upstream_fallback_base_url")
-        .clone()
+    crate::lock_utils::read_recover(
+        upstream_fallback_base_url_cell(),
+        "upstream_fallback_base_url",
+    )
+    .clone()
     .or_else(|| {
         if is_chatgpt_backend_base(primary_base) {
             // 默认兜底到 OpenAI v1，避免 Cloudflare challenge 时模型列表不可用。
@@ -132,6 +134,3 @@ fn env_non_empty(name: &str) -> Option<String> {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }
-
-
-

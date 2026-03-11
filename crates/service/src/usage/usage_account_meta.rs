@@ -26,7 +26,10 @@ fn resolve_workspace_header(
 }
 
 pub(crate) fn workspace_header_for_account(account: &Account) -> Option<String> {
-    resolve_workspace_header(account.workspace_id.clone(), account.chatgpt_account_id.clone())
+    resolve_workspace_header(
+        account.workspace_id.clone(),
+        account.chatgpt_account_id.clone(),
+    )
 }
 
 pub(crate) fn build_workspace_map_from_accounts(
@@ -49,7 +52,10 @@ pub(crate) fn build_workspace_map(storage: &Storage) -> HashMap<String, Option<S
 }
 
 #[allow(dead_code)]
-pub(crate) fn resolve_workspace_id_for_account(storage: &Storage, account_id: &str) -> Option<String> {
+pub(crate) fn resolve_workspace_id_for_account(
+    storage: &Storage,
+    account_id: &str,
+) -> Option<String> {
     storage
         .find_account_by_id(account_id)
         .ok()
@@ -74,7 +80,8 @@ pub(crate) fn derive_account_meta(token: &Token) -> (Option<String>, Option<Stri
 
     if workspace_id.is_none() {
         workspace_id = clean_header_value(
-            extract_workspace_id(&token.id_token).or_else(|| extract_workspace_id(&token.access_token)),
+            extract_workspace_id(&token.id_token)
+                .or_else(|| extract_workspace_id(&token.access_token)),
         );
     }
     if chatgpt_account_id.is_none() {
@@ -185,7 +192,11 @@ mod tests {
     use codexmanager_core::storage::{now_ts, Account, Storage};
     use std::collections::HashMap;
 
-    fn build_account(id: &str, workspace_id: Option<&str>, chatgpt_account_id: Option<&str>) -> Account {
+    fn build_account(
+        id: &str,
+        workspace_id: Option<&str>,
+        chatgpt_account_id: Option<&str>,
+    ) -> Account {
         Account {
             id: id.to_string(),
             label: format!("label-{id}"),
@@ -202,7 +213,10 @@ mod tests {
 
     #[test]
     fn clean_header_value_trims_and_drops_empty() {
-        assert_eq!(clean_header_value(Some(" abc ".to_string())), Some("abc".to_string()));
+        assert_eq!(
+            clean_header_value(Some(" abc ".to_string())),
+            Some("abc".to_string())
+        );
         assert_eq!(clean_header_value(Some("   ".to_string())), None);
         assert_eq!(clean_header_value(None), None);
     }
@@ -227,7 +241,10 @@ mod tests {
             .expect("insert");
 
         let workspace_map = build_workspace_map(&storage);
-        assert_eq!(workspace_map.get("acc-2").cloned(), Some(Some("chatgpt-2".to_string())));
+        assert_eq!(
+            workspace_map.get("acc-2").cloned(),
+            Some(Some("chatgpt-2".to_string()))
+        );
     }
 
     #[test]
@@ -294,4 +311,3 @@ mod tests {
         assert_eq!(updated.workspace_id.as_deref(), Some("ws-correct"));
     }
 }
-

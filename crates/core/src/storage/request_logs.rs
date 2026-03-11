@@ -407,7 +407,9 @@ mod tests {
     fn token_stat_failure_still_commits_request_log() {
         let storage = Storage::open_in_memory().expect("open");
         // Only create request_logs table, so request_token_stats insert fails.
-        storage.ensure_request_logs_table().expect("ensure logs table");
+        storage
+            .ensure_request_logs_table()
+            .expect("ensure logs table");
 
         let created_at = 42_i64;
         let log = RequestLog {

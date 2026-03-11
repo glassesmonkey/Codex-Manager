@@ -2,8 +2,14 @@
 pub(super) enum RequestLogQuery {
     All,
     GlobalLike(String),
-    FieldLike { column: &'static str, pattern: String },
-    FieldExact { column: &'static str, value: String },
+    FieldLike {
+        column: &'static str,
+        pattern: String,
+    },
+    FieldExact {
+        column: &'static str,
+        value: String,
+    },
     StatusExact(i64),
     StatusRange(i64, i64),
 }

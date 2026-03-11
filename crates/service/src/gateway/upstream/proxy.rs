@@ -3,8 +3,8 @@ use serde_json::Value;
 use std::time::{Duration, Instant};
 use tiny_http::{Request, Response};
 
-use super::super::request_log::RequestLogUsage;
 use super::super::local_validation::LocalValidationResult;
+use super::super::request_log::RequestLogUsage;
 use super::candidate_flow::{process_candidate_upstream_flow, CandidateUpstreamDecision};
 use super::execution_context::GatewayUpstreamExecutionContext;
 use super::precheck::{prepare_candidates_for_proxy, CandidatePrecheckResult};
@@ -156,7 +156,10 @@ pub(in super::super) fn proxy_validated_request(
         model_for_log.as_deref(),
         reasoning_for_log.as_deref(),
     ) {
-        CandidatePrecheckResult::Ready { request, candidates } => (request, candidates),
+        CandidatePrecheckResult::Ready {
+            request,
+            candidates,
+        } => (request, candidates),
         CandidatePrecheckResult::Responded => return Ok(()),
     };
     let mut request = Some(request);
@@ -170,8 +173,8 @@ pub(in super::super) fn proxy_validated_request(
 
     let candidate_count = candidates.len();
     let account_max_inflight = super::super::account_max_inflight_limit();
-    let anthropic_has_prompt_cache_key = protocol_type == PROTOCOL_ANTHROPIC_NATIVE
-        && has_prompt_cache_key;
+    let anthropic_has_prompt_cache_key =
+        protocol_type == PROTOCOL_ANTHROPIC_NATIVE && has_prompt_cache_key;
     super::super::apply_route_strategy(&mut candidates, &key_id, model_for_log.as_deref());
     let candidate_order = candidates
         .iter()
@@ -197,9 +200,9 @@ pub(in super::super) fn proxy_validated_request(
         account_max_inflight,
     );
     let allow_openai_fallback = true;
-    let disable_challenge_stateless_retry =
-        !(protocol_type == PROTOCOL_ANTHROPIC_NATIVE && body.len() <= 2 * 1024)
-            && !path.starts_with("/v1/responses");
+    let disable_challenge_stateless_retry = !(protocol_type == PROTOCOL_ANTHROPIC_NATIVE
+        && body.len() <= 2 * 1024)
+        && !path.starts_with("/v1/responses");
     let request_gate_lock =
         super::super::request_gate_lock(&key_id, &path, model_for_log.as_deref());
     let request_gate_wait_timeout = super::super::request_gate_wait_timeout();
@@ -222,8 +225,9 @@ pub(in super::super) fn proxy_validated_request(
             Some(guard)
         }
         Ok(None) => {
-            let effective_wait = super::deadline::cap_wait(request_gate_wait_timeout, request_deadline)
-                .unwrap_or(Duration::from_millis(0));
+            let effective_wait =
+                super::deadline::cap_wait(request_gate_wait_timeout, request_deadline)
+                    .unwrap_or(Duration::from_millis(0));
             let wait_result = if effective_wait.is_zero() {
                 Ok(None)
             } else {
@@ -455,7 +459,12 @@ pub(in super::super) fn proxy_validated_request(
                             last_attempt_url = upstream_url.map(str::to_string);
                             last_attempt_error = error.map(str::to_string);
                             super::super::record_route_quality(&account.id, status_code);
-                            context.log_attempt_result(&account.id, upstream_url, status_code, error);
+                            context.log_attempt_result(
+                                &account.id,
+                                upstream_url,
+                                status_code,
+                                error,
+                            );
                         },
                     );
 
@@ -469,7 +478,10 @@ pub(in super::super) fn proxy_validated_request(
                             super::super::record_gateway_failover_attempt();
                             continue;
                         }
-                        CandidateUpstreamDecision::Terminal { status_code, message } => {
+                        CandidateUpstreamDecision::Terminal {
+                            status_code,
+                            message,
+                        } => {
                             let _ = super::super::clear_manual_preferred_account_if(&account.id);
                             let elapsed_ms = started_at.elapsed().as_millis();
                             context.log_final_result(
@@ -491,8 +503,11 @@ pub(in super::super) fn proxy_validated_request(
                 if status_code >= 400 {
                     let _ = super::super::clear_manual_preferred_account_if(&account.id);
                 }
-                let mut final_error: Option<String> =
-                    if status_code >= 400 { last_attempt_error.clone() } else { None };
+                let mut final_error: Option<String> = if status_code >= 400 {
+                    last_attempt_error.clone()
+                } else {
+                    None
+                };
                 let elapsed_ms = started_at.elapsed().as_millis();
                 let request = request
                     .take()
@@ -555,7 +570,10 @@ pub(in super::super) fn proxy_validated_request(
                 if upstream_stream_failed {
                     // 下次请求尽量避开该账号，避免连续断流造成体验很差。
                     let _ = super::super::clear_manual_preferred_account_if(&account.id);
-                    super::super::mark_account_cooldown(&account.id, super::super::CooldownReason::Network);
+                    super::super::mark_account_cooldown(
+                        &account.id,
+                        super::super::CooldownReason::Network,
+                    );
                     super::super::record_route_quality(&account.id, 502);
                 }
 
@@ -592,6 +610,3 @@ pub(in super::super) fn proxy_validated_request(
         .ok_or_else(|| "request already consumed".to_string())?;
     respond_terminal(request, 503, "no available account".to_string())
 }
-
-
-

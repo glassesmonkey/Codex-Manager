@@ -146,7 +146,9 @@ fn prune_failure_event_state(
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_usage_refresh_error, should_record_failure_event_with_state, FailureThrottleKey};
+    use super::{
+        classify_usage_refresh_error, should_record_failure_event_with_state, FailureThrottleKey,
+    };
     use std::collections::HashMap;
 
     #[test]
@@ -195,10 +197,7 @@ mod tests {
             60
         ));
         assert!(should_record_failure_event_with_state(
-            &mut state,
-            key,
-            161,
-            60
+            &mut state, key, 161, 60
         ));
     }
 
@@ -215,10 +214,7 @@ mod tests {
         };
 
         assert!(should_record_failure_event_with_state(
-            &mut state,
-            key_500,
-            100,
-            60
+            &mut state, key_500, 100, 60
         ));
         assert!(should_record_failure_event_with_state(
             &mut state,

@@ -88,7 +88,10 @@ fn rotate_to_manual_preferred_account(candidates: &mut [(Account, Token)]) -> bo
     let Some(account_id) = state.manual_preferred_account_id.as_deref() else {
         return false;
     };
-    let Some(index) = candidates.iter().position(|(account, _)| account.id.eq(account_id)) else {
+    let Some(index) = candidates
+        .iter()
+        .position(|(account, _)| account.id.eq(account_id))
+    else {
         // 中文注释：手动指定账号已不在可用候选池（可能用尽/不可用），自动回退到常规轮转。
         state.manual_preferred_account_id = None;
         return false;
@@ -117,11 +120,9 @@ fn parse_route_mode(raw: &str) -> Option<u8> {
         ROUTE_STRATEGY_BALANCED | "round_robin" | "round-robin" | "rr" => {
             Some(ROUTE_MODE_BALANCED_ROUND_ROBIN)
         }
-        ROUTE_STRATEGY_EXPIRY_FIRST
-        | "expiry-first"
-        | "expiry"
-        | "usage_aware"
-        | "usage-aware" => Some(ROUTE_MODE_EXPIRY_FIRST),
+        ROUTE_STRATEGY_EXPIRY_FIRST | "expiry-first" | "expiry" | "usage_aware" | "usage-aware" => {
+            Some(ROUTE_MODE_EXPIRY_FIRST)
+        }
         _ => None,
     }
 }
@@ -371,11 +372,7 @@ fn enforce_capacity_pair<T: Copy, U: Copy>(
 
 fn find_oldest_key<T: Copy>(map: &HashMap<String, RouteStateEntry<T>>) -> Option<String> {
     map.iter()
-        .min_by(|(ka, ea), (kb, eb)| {
-            ea.last_seen
-                .cmp(&eb.last_seen)
-                .then_with(|| ka.cmp(kb))
-        })
+        .min_by(|(ka, ea), (kb, eb)| ea.last_seen.cmp(&eb.last_seen).then_with(|| ka.cmp(kb)))
         .map(|(key, _)| key.clone())
 }
 
@@ -383,7 +380,10 @@ fn key_model_key(key_id: &str, model: Option<&str>) -> String {
     format!(
         "{}|{}",
         key_id.trim(),
-        model.map(str::trim).filter(|v| !v.is_empty()).unwrap_or("-")
+        model
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .unwrap_or("-")
     )
 }
 
@@ -392,7 +392,10 @@ pub(super) fn reload_from_env() {
     let mode = parse_route_mode(raw.as_str()).unwrap_or(ROUTE_MODE_ORDERED);
     ROUTE_MODE.store(mode, Ordering::Relaxed);
     ROUTE_HEALTH_P2C_ENABLED.store(
-        env_bool_or(ROUTE_HEALTH_P2C_ENABLED_ENV, DEFAULT_ROUTE_HEALTH_P2C_ENABLED),
+        env_bool_or(
+            ROUTE_HEALTH_P2C_ENABLED_ENV,
+            DEFAULT_ROUTE_HEALTH_P2C_ENABLED,
+        ),
         Ordering::Relaxed,
     );
     ROUTE_HEALTH_P2C_ORDERED_WINDOW.store(
@@ -576,7 +579,10 @@ mod tests {
     }
 
     fn account_ids(candidates: &[(Account, Token)]) -> Vec<String> {
-        candidates.iter().map(|(account, _)| account.id.clone()).collect()
+        candidates
+            .iter()
+            .map(|(account, _)| account.id.clone())
+            .collect()
     }
 
     #[test]
@@ -591,7 +597,11 @@ mod tests {
         apply_route_strategy(&mut candidates, "gk_1", Some("gpt-5.3-codex"));
         assert_eq!(
             account_ids(&candidates),
-            vec!["acc-a".to_string(), "acc-b".to_string(), "acc-c".to_string()]
+            vec![
+                "acc-a".to_string(),
+                "acc-b".to_string(),
+                "acc-c".to_string()
+            ]
         );
 
         if let Some(value) = previous {
@@ -614,21 +624,33 @@ mod tests {
         apply_route_strategy(&mut first, "gk_1", Some("gpt-5.3-codex"));
         assert_eq!(
             account_ids(&first),
-            vec!["acc-a".to_string(), "acc-b".to_string(), "acc-c".to_string()]
+            vec![
+                "acc-a".to_string(),
+                "acc-b".to_string(),
+                "acc-c".to_string()
+            ]
         );
 
         let mut second = candidate_list();
         apply_route_strategy(&mut second, "gk_1", Some("gpt-5.3-codex"));
         assert_eq!(
             account_ids(&second),
-            vec!["acc-b".to_string(), "acc-c".to_string(), "acc-a".to_string()]
+            vec![
+                "acc-b".to_string(),
+                "acc-c".to_string(),
+                "acc-a".to_string()
+            ]
         );
 
         let mut third = candidate_list();
         apply_route_strategy(&mut third, "gk_1", Some("gpt-5.3-codex"));
         assert_eq!(
             account_ids(&third),
-            vec!["acc-c".to_string(), "acc-a".to_string(), "acc-b".to_string()]
+            vec![
+                "acc-c".to_string(),
+                "acc-a".to_string(),
+                "acc-b".to_string()
+            ]
         );
 
         if let Some(value) = previous {
@@ -675,7 +697,10 @@ mod tests {
     fn set_route_strategy_accepts_aliases_and_reports_canonical_name() {
         let _guard = route_strategy_test_guard();
         clear_route_state_for_tests();
-        assert_eq!(set_route_strategy("ordered").expect("set ordered"), "ordered");
+        assert_eq!(
+            set_route_strategy("ordered").expect("set ordered"),
+            "ordered"
+        );
         assert_eq!(
             set_route_strategy("round_robin").expect("set rr alias"),
             "balanced"

@@ -28,7 +28,9 @@ fn failover_on_missing_usage() {
         credits_json: None,
         captured_at: now_ts(),
     };
-    storage.insert_usage_snapshot(&record).expect("insert usage");
+    storage
+        .insert_usage_snapshot(&record)
+        .expect("insert usage");
 
     let should_failover = should_failover_after_refresh(&storage, "acc-1", Ok(()));
     assert!(should_failover);
@@ -125,4 +127,3 @@ fn status_fallback_triggers_on_429_and_responses_403() {
         403
     ));
 }
-

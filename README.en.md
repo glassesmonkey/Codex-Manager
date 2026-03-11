@@ -412,6 +412,9 @@ Notes:
 - `Anthropic-compatible`: use `http://localhost:48760/v1/messages`
   - Request body must include `messages` (not `input`).
 - `OpenAI-compatible`: use `http://localhost:48760/v1/chat/completions`
+  - When the upstream is `chatgpt.com/backend-api/codex`, this path is bridged to `/v1/responses` internally.
+  - Supported subset: text messages, `image_url` user parts, tools/tool_choice, assistant tool calls, tool-role replies, non-stream and stream.
+  - Unsupported chat fields such as `temperature`, `top_p`, `n`, `logprobs`, `response_format`, `audio`, and `modalities` return `400` on this compatibility path.
 - Auth headers: `Authorization: Bearer <platform_key>` or `x-api-key: <platform_key>`.
 - Calling `/messages` without `/v1` returns `{"detail":"Not Found"}`.
 

@@ -39,8 +39,13 @@ where
         return FallbackBranchResult::NotTriggered;
     }
 
-    let should_fallback = super::super::should_try_openai_fallback(upstream_base, path, upstream_content_type)
-        || super::super::should_try_openai_fallback_by_status(upstream_base, path, status.as_u16());
+    let should_fallback =
+        super::super::should_try_openai_fallback(upstream_base, path, upstream_content_type)
+            || super::super::should_try_openai_fallback_by_status(
+                upstream_base,
+                path,
+                status.as_u16(),
+            );
     if !should_fallback {
         return FallbackBranchResult::NotTriggered;
     }
@@ -94,8 +99,15 @@ where
                 }
             }
             Ok(None) => {
-                super::super::mark_account_cooldown(&account.id, super::super::CooldownReason::Network);
-                log_gateway_result(Some(fallback_base), 502, Some("upstream fallback unavailable"));
+                super::super::mark_account_cooldown(
+                    &account.id,
+                    super::super::CooldownReason::Network,
+                );
+                log_gateway_result(
+                    Some(fallback_base),
+                    502,
+                    Some("upstream fallback unavailable"),
+                );
                 if has_more_candidates {
                     FallbackBranchResult::Failover
                 } else {
@@ -106,7 +118,10 @@ where
                 }
             }
             Err(err) => {
-                super::super::mark_account_cooldown(&account.id, super::super::CooldownReason::Network);
+                super::super::mark_account_cooldown(
+                    &account.id,
+                    super::super::CooldownReason::Network,
+                );
                 log_gateway_result(Some(fallback_base), 502, Some(err.as_str()));
                 if has_more_candidates {
                     FallbackBranchResult::Failover
@@ -135,5 +150,3 @@ where
         }
     }
 }
-
-

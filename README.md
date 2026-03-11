@@ -399,9 +399,12 @@ CODEXMANAGER_GATEWAY_KEEPALIVE_INTERVAL_SECS=180
 
 ## OpenClaw 接入与优化
 ### 路径与协议
-- `Anthropic-compatible`：使用 `http://localhost:48760/v1`
+- `Anthropic-compatible`：使用 `http://localhost:48760/v1/messages`
   - 请求体必须有 `messages` 字段（不是 `input`）。
-- 不支持 `OpenAI-compatible`
+- `OpenAI-compatible`：使用 `http://localhost:48760/v1/chat/completions`
+  - 当上游是 `chatgpt.com/backend-api/codex` 时，会在内部桥接到 `/v1/responses`。
+  - 当前支持的兼容子集：文本消息、用户 `image_url` 图片块、tools/tool_choice、assistant tool calls、tool 角色回复、非流式与流式。
+  - `temperature`、`top_p`、`n`、`logprobs`、`response_format`、`audio`、`modalities` 等无法稳定映射到 Codex `/responses` 的字段会直接返回 `400`。
 - 鉴权头支持 `Authorization: Bearer <platform_key>`，也支持 `x-api-key: <platform_key>`。
 
 
@@ -454,4 +457,3 @@ curl http://localhost:48760/v1/messages \
 对应实现可见：
 - `crates/service/src/gateway/protocol_adapter/request_mapping.rs`
 - `crates/service/src/gateway/upstream/transport.rs`
-

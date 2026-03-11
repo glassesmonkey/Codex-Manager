@@ -117,23 +117,23 @@ pub(super) fn write_request_log(
     // 记录请求最终结果（而非内部重试明细），保证 UI 一次请求只展示一条记录。
     let (request_log_id, token_stat_error) = match storage.insert_request_log_with_token_stat(
         &RequestLog {
-        key_id: key_id.map(|v| v.to_string()),
-        account_id: account_id.map(|v| v.to_string()),
-        request_path: request_path.to_string(),
-        method: method.to_string(),
-        model: model.map(|v| v.to_string()),
-        reasoning_effort: reasoning_effort.map(|v| v.to_string()),
-        upstream_url: upstream_url.map(|v| v.to_string()),
-        status_code: status_code.map(|v| i64::from(v)),
-        input_tokens: None,
-        cached_input_tokens: None,
-        output_tokens: None,
-        total_tokens: None,
-        reasoning_output_tokens: None,
-        estimated_cost_usd: None,
-        error: error.map(|v| v.to_string()),
-        created_at,
-    },
+            key_id: key_id.map(|v| v.to_string()),
+            account_id: account_id.map(|v| v.to_string()),
+            request_path: request_path.to_string(),
+            method: method.to_string(),
+            model: model.map(|v| v.to_string()),
+            reasoning_effort: reasoning_effort.map(|v| v.to_string()),
+            upstream_url: upstream_url.map(|v| v.to_string()),
+            status_code: status_code.map(|v| i64::from(v)),
+            input_tokens: None,
+            cached_input_tokens: None,
+            output_tokens: None,
+            total_tokens: None,
+            reasoning_output_tokens: None,
+            estimated_cost_usd: None,
+            error: error.map(|v| v.to_string()),
+            created_at,
+        },
         &RequestTokenStat {
             request_log_id: 0,
             key_id: key_id.map(|v| v.to_string()),
@@ -205,8 +205,7 @@ mod tests {
             "gpt-5.1-codex-max",
         ];
         for model in models {
-            let actual =
-                estimate_cost_usd(Some(model), Some(1000), Some(200), Some(500));
+            let actual = estimate_cost_usd(Some(model), Some(1000), Some(200), Some(500));
             assert_close(actual, expected);
         }
     }
@@ -215,20 +214,15 @@ mod tests {
     fn estimate_cost_matches_openai_gpt5_mini_and_52_prices() {
         // mini：输入 0.25/M，缓存 0.025/M，输出 2/M
         // 样本同上 => 0.001205
-        let mini_cost = estimate_cost_usd(
-            Some("gpt-5.1-codex-mini"),
-            Some(1000),
-            Some(200),
-            Some(500),
-        );
+        let mini_cost =
+            estimate_cost_usd(Some("gpt-5.1-codex-mini"), Some(1000), Some(200), Some(500));
         assert_close(mini_cost, 0.001205);
 
         // 5.2：输入 1.75/M，缓存 0.175/M，输出 14/M
         // 样本同上 => 0.008435
         let v52_models = ["gpt-5.2", "gpt-5.2-codex"];
         for model in v52_models {
-            let actual =
-                estimate_cost_usd(Some(model), Some(1000), Some(200), Some(500));
+            let actual = estimate_cost_usd(Some(model), Some(1000), Some(200), Some(500));
             assert_close(actual, 0.008435);
         }
     }

@@ -136,9 +136,7 @@ fn ensure_responses_store_false(path: &str, obj: &mut serde_json::Map<String, Va
     if !path.starts_with("/v1/responses") {
         return false;
     }
-    let store = obj
-        .entry("store".to_string())
-        .or_insert(Value::Bool(false));
+    let store = obj.entry("store".to_string()).or_insert(Value::Bool(false));
     if store.as_bool() == Some(false) {
         return false;
     }
@@ -158,6 +156,7 @@ fn is_supported_codex_responses_key(key: &str) -> bool {
             | "tool_choice"
             | "parallel_tool_calls"
             | "reasoning"
+            | "max_output_tokens"
             | "store"
             | "stream"
             | "include"
@@ -529,15 +528,15 @@ mod tests {
             Some("gpt-5.3-codex")
         );
         assert_eq!(
-            value.get("instructions").and_then(serde_json::Value::as_str),
+            value
+                .get("instructions")
+                .and_then(serde_json::Value::as_str),
             Some("stay")
         );
         assert!(value.get("input").is_some());
         assert!(value.get("tools").is_some());
         assert_eq!(
-            value
-                .get("tool_choice")
-                .and_then(serde_json::Value::as_str),
+            value.get("tool_choice").and_then(serde_json::Value::as_str),
             Some("auto")
         );
         assert_eq!(
@@ -564,7 +563,12 @@ mod tests {
         );
         assert!(value.get("text").is_some());
         assert!(value.get("service_tier").is_none());
-        assert!(value.get("max_output_tokens").is_none());
+        assert_eq!(
+            value
+                .get("max_output_tokens")
+                .and_then(serde_json::Value::as_i64),
+            Some(8192)
+        );
         assert!(value.get("max_completion_tokens").is_none());
         assert!(value.get("temperature").is_none());
         assert!(value.get("top_p").is_none());
@@ -616,5 +620,4 @@ mod tests {
         );
         assert!(value.get("instructions").is_none());
     }
-
 }

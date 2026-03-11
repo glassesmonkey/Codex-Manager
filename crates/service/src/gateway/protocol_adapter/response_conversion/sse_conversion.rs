@@ -195,7 +195,6 @@ pub(super) fn convert_anthropic_json_to_sse(
     Ok((out.into_bytes(), "text/event-stream"))
 }
 
-
 pub(super) fn convert_openai_sse_to_anthropic(
     body: &[u8],
 ) -> Result<(Vec<u8>, &'static str), String> {
@@ -298,7 +297,10 @@ pub(super) fn convert_openai_sse_to_anthropic(
         }
 
         if response_id.is_none() {
-            response_id = value.get("id").and_then(Value::as_str).map(|v| v.to_string());
+            response_id = value
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|v| v.to_string());
         }
         if model.is_none() {
             model = value
@@ -450,10 +452,7 @@ pub(super) fn convert_openai_sse_to_anthropic(
     }
 
     for (idx, tool_call) in tool_calls {
-        let tool_name = tool_call
-            .name
-            .clone()
-            .unwrap_or_else(|| "tool".to_string());
+        let tool_name = tool_call.name.clone().unwrap_or_else(|| "tool".to_string());
         let tool_use_id = tool_call
             .id
             .clone()
@@ -690,8 +689,8 @@ pub(super) fn convert_anthropic_sse_to_json(
             "output_tokens": output_tokens,
         }
     });
-    let bytes =
-        serde_json::to_vec(&out).map_err(|err| format!("serialize anthropic json failed: {err}"))?;
+    let bytes = serde_json::to_vec(&out)
+        .map_err(|err| format!("serialize anthropic json failed: {err}"))?;
     Ok((bytes, "application/json"))
 }
 
@@ -702,7 +701,6 @@ struct StreamingToolCall {
     arguments: String,
 }
 
-
 fn to_tool_input_partial_json(value: &Value) -> Option<String> {
     let serialized = serde_json::to_string(value).ok()?;
     if serialized == "{}" {
@@ -710,7 +708,6 @@ fn to_tool_input_partial_json(value: &Value) -> Option<String> {
     }
     Some(serialized)
 }
-
 
 fn append_sse_event(buffer: &mut String, event_name: &str, payload: &Value) {
     let data = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
@@ -721,4 +718,3 @@ fn append_sse_event(buffer: &mut String, event_name: &str, payload: &Value) {
     buffer.push_str(&data);
     buffer.push_str("\n\n");
 }
-

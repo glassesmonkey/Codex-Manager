@@ -1,4 +1,5 @@
 use serde_json::{json, Map, Value};
+use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, Cursor, Read};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -103,7 +104,8 @@ fn parse_usage_from_object(usage: Option<&Map<String, Value>>) -> UpstreamRespon
         .and_then(|details| details.get("cached_tokens"))
         .and_then(Value::as_i64)
         .or_else(|| {
-            usage.and_then(|map| map.get("prompt_tokens_details"))
+            usage
+                .and_then(|map| map.get("prompt_tokens_details"))
                 .and_then(Value::as_object)
                 .and_then(|details| details.get("cached_tokens"))
                 .and_then(Value::as_i64)
@@ -114,7 +116,8 @@ fn parse_usage_from_object(usage: Option<&Map<String, Value>>) -> UpstreamRespon
         .and_then(|details| details.get("reasoning_tokens"))
         .and_then(Value::as_i64)
         .or_else(|| {
-            usage.and_then(|map| map.get("completion_tokens_details"))
+            usage
+                .and_then(|map| map.get("completion_tokens_details"))
                 .and_then(Value::as_object)
                 .and_then(|details| details.get("reasoning_tokens"))
                 .and_then(Value::as_i64)
@@ -221,7 +224,10 @@ fn collect_response_output_text(value: &Value, output: &mut String) {
 fn output_text_limit_bytes() -> usize {
     let _ = OUTPUT_TEXT_LIMIT_LOADED.get_or_init(|| {
         let raw = std::env::var(OUTPUT_TEXT_LIMIT_BYTES_ENV).unwrap_or_default();
-        let limit = raw.trim().parse::<usize>().unwrap_or(DEFAULT_OUTPUT_TEXT_LIMIT_BYTES);
+        let limit = raw
+            .trim()
+            .parse::<usize>()
+            .unwrap_or(DEFAULT_OUTPUT_TEXT_LIMIT_BYTES);
         OUTPUT_TEXT_LIMIT_BYTES.store(limit, Ordering::Relaxed);
     });
     OUTPUT_TEXT_LIMIT_BYTES.load(Ordering::Relaxed)
@@ -395,7 +401,10 @@ fn classify_terminal_event_name(name: &str) -> Option<SseTerminal> {
     if normalized.is_empty() {
         return None;
     }
-    if normalized == "done" || normalized == "response.completed" || normalized.ends_with(".completed") {
+    if normalized == "done"
+        || normalized == "response.completed"
+        || normalized.ends_with(".completed")
+    {
         return Some(SseTerminal::Ok);
     }
     if normalized == "error"
@@ -454,7 +463,10 @@ fn extract_error_message_from_json(value: &Value) -> Option<String> {
         }
 
         // Fall back to compact JSON if needed.
-        serde_json::to_string(err_obj).ok().map(|text| text.trim().to_string()).filter(|v| !v.is_empty())
+        serde_json::to_string(err_obj)
+            .ok()
+            .map(|text| text.trim().to_string())
+            .filter(|v| !v.is_empty())
     }
 
     fn extract_message_from_error_value(err_value: Option<&Value>) -> Option<String> {
@@ -481,7 +493,9 @@ fn extract_error_message_from_json(value: &Value) -> Option<String> {
         return Some(message);
     }
     // Some providers nest details under response.status_details.error.
-    if let Some(message) = extract_message_from_error_value(value.pointer("/response/status_details/error")) {
+    if let Some(message) =
+        extract_message_from_error_value(value.pointer("/response/status_details/error"))
+    {
         return Some(message);
     }
     // Some providers emit: { "type": "error", "message": "..." }
@@ -561,13 +575,17 @@ fn inspect_sse_frame(lines: &[String]) -> SseFrameInspection {
                 }
             }
             if !text_out.trim().is_empty() {
-                let usage = inspection.usage.get_or_insert_with(UpstreamResponseUsage::default);
+                let usage = inspection
+                    .usage
+                    .get_or_insert_with(UpstreamResponseUsage::default);
                 let target = usage.output_text.get_or_insert_with(String::new);
                 append_output_text(target, text_out.as_str());
             }
         } else if let Some(delta) = value.get("delta").and_then(Value::as_str) {
             if !delta.is_empty() {
-                let usage = inspection.usage.get_or_insert_with(UpstreamResponseUsage::default);
+                let usage = inspection
+                    .usage
+                    .get_or_insert_with(UpstreamResponseUsage::default);
                 let target = usage.output_text.get_or_insert_with(String::new);
                 append_output_text(target, delta);
             }
@@ -595,7 +613,9 @@ fn parse_sse_frame_json(lines: &[String]) -> Option<Value> {
     serde_json::from_str::<Value>(&data).ok()
 }
 
-fn collect_non_stream_json_from_sse_bytes(payload: &[u8]) -> (Option<Vec<u8>>, UpstreamResponseUsage) {
+fn collect_non_stream_json_from_sse_bytes(
+    payload: &[u8],
+) -> (Option<Vec<u8>>, UpstreamResponseUsage) {
     let mut usage = UpstreamResponseUsage::default();
     let mut completed_response: Option<Value> = None;
     let mut frame_lines: Vec<String> = Vec::new();
@@ -734,14 +754,14 @@ pub(super) fn respond_with_upstream(
                         .as_str()
                         .eq_ignore_ascii_case("Content-Type")
                 });
-                if let Ok(content_type_header) = Header::from_bytes(
-                    b"Content-Type".as_slice(),
-                    b"application/json".as_slice(),
-                ) {
+                if let Ok(content_type_header) =
+                    Header::from_bytes(b"Content-Type".as_slice(), b"application/json".as_slice())
+                {
                     headers.push(content_type_header);
                 }
                 let len = Some(body.len());
-                let response = Response::new(status, headers, std::io::Cursor::new(body), len, None);
+                let response =
+                    Response::new(status, headers, std::io::Cursor::new(body), len, None);
                 let delivery_error = request.respond(response).err().map(|err| err.to_string());
                 return Ok(UpstreamResponseBridgeResult {
                     usage,
@@ -760,7 +780,10 @@ pub(super) fn respond_with_upstream(
                     None,
                 );
                 let delivery_error = request.respond(response).err().map(|err| err.to_string());
-                let collector = usage_collector.lock().map(|guard| guard.clone()).unwrap_or_default();
+                let collector = usage_collector
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default();
                 return Ok(UpstreamResponseBridgeResult {
                     usage: collector.usage,
                     stream_terminal_seen: collector.saw_terminal,
@@ -807,10 +830,9 @@ pub(super) fn respond_with_upstream(
                         .map(|value| value.to_ascii_lowercase().starts_with("text/event-stream"))
                         .unwrap_or(false))
             {
-                if let Ok(content_type_header) = Header::from_bytes(
-                    b"Content-Type".as_slice(),
-                    b"text/event-stream".as_slice(),
-                ) {
+                if let Ok(content_type_header) =
+                    Header::from_bytes(b"Content-Type".as_slice(), b"text/event-stream".as_slice())
+                {
                     headers.push(content_type_header);
                 }
                 let usage_collector = Arc::new(Mutex::new(UpstreamResponseUsage::default()));
@@ -861,6 +883,101 @@ pub(super) fn respond_with_upstream(
                 headers.push(content_type_header);
             }
 
+            let len = Some(body.len());
+            let response = Response::new(status, headers, std::io::Cursor::new(body), len, None);
+            let delivery_error = request.respond(response).err().map(|err| err.to_string());
+            Ok(UpstreamResponseBridgeResult {
+                usage,
+                stream_terminal_seen: true,
+                stream_terminal_error: None,
+                delivery_error,
+            })
+        }
+        super::ResponseAdapter::OpenAiChatJson | super::ResponseAdapter::OpenAiChatSse => {
+            let status = StatusCode(upstream.status().as_u16());
+            let mut headers = Vec::new();
+            for (name, value) in upstream.headers().iter() {
+                let name_str = name.as_str();
+                if name_str.eq_ignore_ascii_case("transfer-encoding")
+                    || name_str.eq_ignore_ascii_case("content-length")
+                    || name_str.eq_ignore_ascii_case("connection")
+                    || name_str.eq_ignore_ascii_case("content-type")
+                {
+                    continue;
+                }
+                if let Ok(header) = Header::from_bytes(name_str.as_bytes(), value.as_bytes()) {
+                    headers.push(header);
+                }
+            }
+            let upstream_content_type = upstream
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .map(|v| v.to_string());
+
+            if response_adapter == super::ResponseAdapter::OpenAiChatSse
+                && (is_stream
+                    || upstream_content_type
+                        .as_deref()
+                        .map(|value| value.to_ascii_lowercase().starts_with("text/event-stream"))
+                        .unwrap_or(false))
+            {
+                if let Ok(content_type_header) =
+                    Header::from_bytes(b"Content-Type".as_slice(), b"text/event-stream".as_slice())
+                {
+                    headers.push(content_type_header);
+                }
+                let usage_collector = Arc::new(Mutex::new(UpstreamResponseUsage::default()));
+                let response = Response::new(
+                    status,
+                    headers,
+                    OpenAiChatSseReader::new(upstream, Arc::clone(&usage_collector)),
+                    None,
+                    None,
+                );
+                let delivery_error = request.respond(response).err().map(|err| err.to_string());
+                let usage = usage_collector
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default();
+                return Ok(UpstreamResponseBridgeResult {
+                    usage,
+                    stream_terminal_seen: true,
+                    stream_terminal_error: None,
+                    delivery_error,
+                });
+            }
+
+            let upstream_body = upstream
+                .bytes()
+                .map_err(|err| format!("read upstream body failed: {err}"))?;
+            let usage = serde_json::from_slice::<Value>(upstream_body.as_ref())
+                .ok()
+                .map(|value| parse_usage_from_json(&value))
+                .unwrap_or_default();
+
+            let (body, content_type) = match super::adapt_upstream_response(
+                response_adapter,
+                upstream_content_type.as_deref(),
+                upstream_body.as_ref(),
+            ) {
+                Ok(result) => result,
+                Err(err) => (
+                    serde_json::to_vec(&json!({
+                        "error": {
+                            "message": format!("response conversion failed: {err}"),
+                            "type": "api_error"
+                        }
+                    }))
+                    .unwrap_or_else(|_| b"{\"error\":{\"message\":\"response conversion failed\",\"type\":\"api_error\"}}".to_vec()),
+                    "application/json",
+                ),
+            };
+            if let Ok(content_type_header) =
+                Header::from_bytes(b"Content-Type".as_slice(), content_type.as_bytes())
+            {
+                headers.push(content_type_header);
+            }
             let len = Some(body.len());
             let response = Response::new(status, headers, std::io::Cursor::new(body), len, None);
             let delivery_error = request.respond(response).err().map(|err| err.to_string());
@@ -931,9 +1048,9 @@ impl PassthroughSseUsageReader {
             }
             if let Ok(mut collector) = self.usage_collector.lock() {
                 if !collector.saw_terminal {
-                    collector.terminal_error.get_or_insert_with(|| {
-                        "stream disconnected before completion".to_string()
-                    });
+                    collector
+                        .terminal_error
+                        .get_or_insert_with(|| "stream disconnected before completion".to_string());
                 }
             }
             self.finished = true;
@@ -1057,7 +1174,10 @@ impl AnthropicSseReader {
         };
         match event_type {
             "response.output_text.delta" => {
-                let fragment = value.get("delta").and_then(Value::as_str).unwrap_or_default();
+                let fragment = value
+                    .get("delta")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
                 if fragment.is_empty() {
                     return Vec::new();
                 }
@@ -1162,7 +1282,10 @@ impl AnthropicSseReader {
                         self.state.streamed_text_raw.as_str(),
                         extracted_output_text.as_str(),
                     ) {
-                        append_output_text_raw(&mut self.state.output_text, pending_delta_text.as_str());
+                        append_output_text_raw(
+                            &mut self.state.output_text,
+                            pending_delta_text.as_str(),
+                        );
                         append_output_text_raw(
                             &mut self.state.streamed_text_raw,
                             pending_delta_text.as_str(),
@@ -1217,7 +1340,8 @@ impl AnthropicSseReader {
                     .and_then(|details| details.get("cached_tokens"))
                     .and_then(Value::as_i64)
                     .or_else(|| {
-                        usage.get("prompt_tokens_details")
+                        usage
+                            .get("prompt_tokens_details")
                             .and_then(Value::as_object)
                             .and_then(|details| details.get("cached_tokens"))
                             .and_then(Value::as_i64)
@@ -1238,7 +1362,8 @@ impl AnthropicSseReader {
                     .and_then(|details| details.get("reasoning_tokens"))
                     .and_then(Value::as_i64)
                     .or_else(|| {
-                        usage.get("completion_tokens_details")
+                        usage
+                            .get("completion_tokens_details")
                             .and_then(Value::as_object)
                             .and_then(|details| details.get("reasoning_tokens"))
                             .and_then(Value::as_i64)
@@ -1383,6 +1508,476 @@ impl Read for AnthropicSseReader {
     }
 }
 
+struct OpenAiChatSseReader {
+    upstream: BufReader<reqwest::blocking::Response>,
+    pending_frame_lines: Vec<String>,
+    out_cursor: Cursor<Vec<u8>>,
+    state: OpenAiChatSseState,
+    usage_collector: Arc<Mutex<UpstreamResponseUsage>>,
+}
+
+#[derive(Default)]
+struct OpenAiChatSseState {
+    started: bool,
+    finished: bool,
+    response_id: Option<String>,
+    model: Option<String>,
+    created: i64,
+    input_tokens: i64,
+    cached_input_tokens: i64,
+    output_tokens: i64,
+    total_tokens: Option<i64>,
+    reasoning_output_tokens: i64,
+    output_text: String,
+    streamed_text_raw: String,
+    finish_reason: Option<&'static str>,
+    emitted_tool_call_indexes: BTreeSet<usize>,
+}
+
+impl OpenAiChatSseReader {
+    fn new(
+        upstream: reqwest::blocking::Response,
+        usage_collector: Arc<Mutex<UpstreamResponseUsage>>,
+    ) -> Self {
+        Self {
+            upstream: BufReader::new(upstream),
+            pending_frame_lines: Vec::new(),
+            out_cursor: Cursor::new(Vec::new()),
+            state: OpenAiChatSseState {
+                created: current_unix_seconds(),
+                ..OpenAiChatSseState::default()
+            },
+            usage_collector,
+        }
+    }
+
+    fn next_chunk(&mut self) -> std::io::Result<Vec<u8>> {
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let read = self.upstream.read_line(&mut line)?;
+            if read == 0 {
+                return Ok(self.finish_stream());
+            }
+            if line == "\n" || line == "\r\n" {
+                let frame = std::mem::take(&mut self.pending_frame_lines);
+                let mapped = self.process_sse_frame(&frame);
+                if !mapped.is_empty() {
+                    return Ok(mapped);
+                }
+                continue;
+            }
+            self.pending_frame_lines.push(line.clone());
+        }
+    }
+
+    fn process_sse_frame(&mut self, lines: &[String]) -> Vec<u8> {
+        let mut data_lines = Vec::new();
+        for line in lines {
+            let trimmed = line.trim_end_matches(['\r', '\n']);
+            if let Some(rest) = trimmed.strip_prefix("data:") {
+                data_lines.push(rest.trim_start().to_string());
+            }
+        }
+        if data_lines.is_empty() {
+            return Vec::new();
+        }
+        let data = data_lines.join("\n");
+        if data.trim() == "[DONE]" {
+            return self.finish_stream();
+        }
+
+        let value = match serde_json::from_str::<Value>(&data) {
+            Ok(value) => value,
+            Err(_) => return Vec::new(),
+        };
+        self.consume_openai_chat_event(&value)
+    }
+
+    fn consume_openai_chat_event(&mut self, value: &Value) -> Vec<u8> {
+        self.capture_response_meta(value);
+        let mut out = String::new();
+        let Some(event_type) = value.get("type").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        match event_type {
+            "response.output_text.delta" => {
+                let fragment = value
+                    .get("delta")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                if fragment.is_empty() {
+                    return Vec::new();
+                }
+                append_output_text_raw(&mut self.state.output_text, fragment);
+                append_output_text_raw(&mut self.state.streamed_text_raw, fragment);
+                self.ensure_role_chunk(&mut out);
+                append_openai_chunk(
+                    &mut out,
+                    &json!({
+                        "id": self.response_id(),
+                        "object": "chat.completion.chunk",
+                        "created": self.state.created,
+                        "model": self.response_model(),
+                        "choices": [{
+                            "index": 0,
+                            "delta": { "content": fragment },
+                            "finish_reason": Value::Null
+                        }]
+                    }),
+                );
+                self.state.finish_reason.get_or_insert("stop");
+            }
+            "response.output_item.done" => {
+                collect_output_text_from_event_fields(value, &mut self.state.output_text);
+                let Some(item_obj) = value
+                    .get("item")
+                    .or_else(|| value.get("output_item"))
+                    .and_then(Value::as_object)
+                else {
+                    return Vec::new();
+                };
+                if item_obj
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .is_none_or(|kind| kind != "function_call")
+                {
+                    return Vec::new();
+                }
+                let index = value
+                    .get("output_index")
+                    .or_else(|| item_obj.get("index"))
+                    .and_then(Value::as_u64)
+                    .map(|value| value as usize)
+                    .unwrap_or(self.state.emitted_tool_call_indexes.len());
+                if !self.state.emitted_tool_call_indexes.insert(index) {
+                    return Vec::new();
+                }
+                self.ensure_role_chunk(&mut out);
+                append_openai_chunk(
+                    &mut out,
+                    &json!({
+                        "id": self.response_id(),
+                        "object": "chat.completion.chunk",
+                        "created": self.state.created,
+                        "model": self.response_model(),
+                        "choices": [{
+                            "index": 0,
+                            "delta": {
+                                "tool_calls": [{
+                                    "index": index,
+                                    "id": item_obj
+                                        .get("call_id")
+                                        .or_else(|| item_obj.get("id"))
+                                        .cloned()
+                                        .unwrap_or_else(|| Value::String(format!("call_{index}"))),
+                                    "type": "function",
+                                    "function": {
+                                        "name": item_obj
+                                            .get("name")
+                                            .cloned()
+                                            .unwrap_or_else(|| Value::String("tool".to_string())),
+                                        "arguments": extract_function_call_arguments_string(item_obj)
+                                    }
+                                }]
+                            },
+                            "finish_reason": Value::Null
+                        }]
+                    }),
+                );
+                self.state.finish_reason = Some("tool_calls");
+            }
+            "response.completed" => {
+                if let Some(response) = value.get("response") {
+                    self.emit_pending_completed_chunks(response, &mut out);
+                }
+            }
+            _ if event_type.starts_with("response.output_item.")
+                || event_type.starts_with("response.content_part.") =>
+            {
+                collect_output_text_from_event_fields(value, &mut self.state.output_text);
+            }
+            _ => {}
+        }
+        out.into_bytes()
+    }
+
+    fn emit_pending_completed_chunks(&mut self, response: &Value, out: &mut String) {
+        let mut extracted_output_text = String::new();
+        collect_response_output_text(response, &mut extracted_output_text);
+        if let Some(pending_delta_text) = pending_completed_output_delta(
+            self.state.streamed_text_raw.as_str(),
+            extracted_output_text.as_str(),
+        ) {
+            append_output_text_raw(&mut self.state.output_text, pending_delta_text.as_str());
+            append_output_text_raw(
+                &mut self.state.streamed_text_raw,
+                pending_delta_text.as_str(),
+            );
+            self.ensure_role_chunk(out);
+            append_openai_chunk(
+                out,
+                &json!({
+                    "id": self.response_id(),
+                    "object": "chat.completion.chunk",
+                    "created": self.state.created,
+                    "model": self.response_model(),
+                    "choices": [{
+                        "index": 0,
+                        "delta": { "content": pending_delta_text },
+                        "finish_reason": Value::Null
+                    }]
+                }),
+            );
+            self.state.finish_reason.get_or_insert("stop");
+        }
+        if let Some(output_items) = response.get("output").and_then(Value::as_array) {
+            for (index, output_item) in output_items.iter().enumerate() {
+                let Some(item_obj) = output_item.as_object() else {
+                    continue;
+                };
+                if item_obj
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .is_none_or(|kind| kind != "function_call")
+                {
+                    continue;
+                }
+                if !self.state.emitted_tool_call_indexes.insert(index) {
+                    continue;
+                }
+                self.ensure_role_chunk(out);
+                append_openai_chunk(
+                    out,
+                    &json!({
+                        "id": self.response_id(),
+                        "object": "chat.completion.chunk",
+                        "created": self.state.created,
+                        "model": self.response_model(),
+                        "choices": [{
+                            "index": 0,
+                            "delta": {
+                                "tool_calls": [{
+                                    "index": index,
+                                    "id": item_obj
+                                        .get("call_id")
+                                        .or_else(|| item_obj.get("id"))
+                                        .cloned()
+                                        .unwrap_or_else(|| Value::String(format!("call_{index}"))),
+                                    "type": "function",
+                                    "function": {
+                                        "name": item_obj
+                                            .get("name")
+                                            .cloned()
+                                            .unwrap_or_else(|| Value::String("tool".to_string())),
+                                        "arguments": extract_function_call_arguments_string(item_obj)
+                                    }
+                                }]
+                            },
+                            "finish_reason": Value::Null
+                        }]
+                    }),
+                );
+                self.state.finish_reason = Some("tool_calls");
+            }
+        }
+        if self.state.finish_reason.is_none() {
+            self.state.finish_reason = Some(infer_openai_finish_reason(response, false));
+        }
+    }
+
+    fn capture_response_meta(&mut self, value: &Value) {
+        if let Some(id) = value.get("id").and_then(Value::as_str) {
+            self.state.response_id = Some(id.to_string());
+        }
+        if let Some(model) = value.get("model").and_then(Value::as_str) {
+            self.state.model = Some(model.to_string());
+        }
+        if let Some(response) = value.get("response").and_then(Value::as_object) {
+            if let Some(id) = response.get("id").and_then(Value::as_str) {
+                self.state.response_id = Some(id.to_string());
+            }
+            if let Some(model) = response.get("model").and_then(Value::as_str) {
+                self.state.model = Some(model.to_string());
+            }
+            if let Some(usage) = response.get("usage").and_then(Value::as_object) {
+                self.capture_usage(usage);
+            }
+        } else if let Some(usage) = value.get("usage").and_then(Value::as_object) {
+            self.capture_usage(usage);
+        }
+    }
+
+    fn capture_usage(&mut self, usage: &Map<String, Value>) {
+        self.state.input_tokens = usage
+            .get("input_tokens")
+            .and_then(Value::as_i64)
+            .or_else(|| usage.get("prompt_tokens").and_then(Value::as_i64))
+            .unwrap_or(self.state.input_tokens);
+        self.state.cached_input_tokens = usage
+            .get("input_tokens_details")
+            .and_then(Value::as_object)
+            .and_then(|details| details.get("cached_tokens"))
+            .and_then(Value::as_i64)
+            .or_else(|| {
+                usage
+                    .get("prompt_tokens_details")
+                    .and_then(Value::as_object)
+                    .and_then(|details| details.get("cached_tokens"))
+                    .and_then(Value::as_i64)
+            })
+            .unwrap_or(self.state.cached_input_tokens);
+        self.state.output_tokens = usage
+            .get("output_tokens")
+            .and_then(Value::as_i64)
+            .or_else(|| usage.get("completion_tokens").and_then(Value::as_i64))
+            .unwrap_or(self.state.output_tokens);
+        self.state.total_tokens = usage
+            .get("total_tokens")
+            .and_then(Value::as_i64)
+            .or(self.state.total_tokens);
+        self.state.reasoning_output_tokens = usage
+            .get("output_tokens_details")
+            .and_then(Value::as_object)
+            .and_then(|details| details.get("reasoning_tokens"))
+            .and_then(Value::as_i64)
+            .or_else(|| {
+                usage
+                    .get("completion_tokens_details")
+                    .and_then(Value::as_object)
+                    .and_then(|details| details.get("reasoning_tokens"))
+                    .and_then(Value::as_i64)
+            })
+            .unwrap_or(self.state.reasoning_output_tokens);
+    }
+
+    fn ensure_role_chunk(&mut self, out: &mut String) {
+        if self.state.started {
+            return;
+        }
+        self.state.started = true;
+        append_openai_chunk(
+            out,
+            &json!({
+                "id": self.response_id(),
+                "object": "chat.completion.chunk",
+                "created": self.state.created,
+                "model": self.response_model(),
+                "choices": [{
+                    "index": 0,
+                    "delta": { "role": "assistant" },
+                    "finish_reason": Value::Null
+                }]
+            }),
+        );
+    }
+
+    fn finish_stream(&mut self) -> Vec<u8> {
+        if self.state.finished {
+            return Vec::new();
+        }
+        self.state.finished = true;
+        if let Ok(mut usage) = self.usage_collector.lock() {
+            usage.input_tokens = Some(self.state.input_tokens.max(0));
+            usage.cached_input_tokens = Some(self.state.cached_input_tokens.max(0));
+            usage.output_tokens = Some(self.state.output_tokens.max(0));
+            usage.total_tokens = self.state.total_tokens.map(|value| value.max(0));
+            usage.reasoning_output_tokens = Some(self.state.reasoning_output_tokens.max(0));
+            if !self.state.output_text.trim().is_empty() {
+                usage.output_text = Some(self.state.output_text.clone());
+            }
+        }
+        let mut out = String::new();
+        self.ensure_role_chunk(&mut out);
+        append_openai_chunk(
+            &mut out,
+            &json!({
+                "id": self.response_id(),
+                "object": "chat.completion.chunk",
+                "created": self.state.created,
+                "model": self.response_model(),
+                "choices": [{
+                    "index": 0,
+                    "delta": {},
+                    "finish_reason": self.state.finish_reason.unwrap_or("stop")
+                }],
+                "usage": {
+                    "prompt_tokens": self.state.input_tokens.max(0),
+                    "completion_tokens": self.state.output_tokens.max(0),
+                    "total_tokens": self.state.total_tokens.unwrap_or_else(|| self.state.input_tokens.saturating_add(self.state.output_tokens)).max(0)
+                }
+            }),
+        );
+        out.push_str("data: [DONE]\n\n");
+        out.into_bytes()
+    }
+
+    fn response_id(&self) -> String {
+        self.state
+            .response_id
+            .clone()
+            .unwrap_or_else(|| "chatcmpl_codexmanager".to_string())
+    }
+
+    fn response_model(&self) -> String {
+        self.state
+            .model
+            .clone()
+            .unwrap_or_else(|| "gpt-5.3-codex".to_string())
+    }
+}
+
+impl Read for OpenAiChatSseReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            let read = self.out_cursor.read(buf)?;
+            if read > 0 {
+                return Ok(read);
+            }
+            if self.state.finished {
+                return Ok(0);
+            }
+            let next = self.next_chunk()?;
+            self.out_cursor = Cursor::new(next);
+        }
+    }
+}
+
+fn append_openai_chunk(buffer: &mut String, payload: &Value) {
+    let data = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
+    buffer.push_str("data: ");
+    buffer.push_str(&data);
+    buffer.push_str("\n\n");
+}
+
+fn extract_function_call_arguments_string(item_obj: &Map<String, Value>) -> String {
+    extract_function_call_input(item_obj)
+        .and_then(|value| serde_json::to_string(&value).ok())
+        .unwrap_or_else(|| "{}".to_string())
+}
+
+fn infer_openai_finish_reason(response: &Value, has_tool_calls: bool) -> &'static str {
+    if has_tool_calls {
+        return "tool_calls";
+    }
+    let incomplete_reason = response
+        .pointer("/incomplete_details/reason")
+        .or_else(|| response.pointer("/status_details/reason"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if incomplete_reason.contains("max_output_tokens") || incomplete_reason.contains("length") {
+        return "length";
+    }
+    "stop"
+}
+
+fn current_unix_seconds() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0)
+}
+
 fn append_sse_event(buffer: &mut String, event_name: &str, payload: &Value) {
     let data = serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string());
     buffer.push_str("event: ");
@@ -1394,7 +1989,13 @@ fn append_sse_event(buffer: &mut String, event_name: &str, payload: &Value) {
 }
 
 fn extract_function_call_input(item_obj: &Map<String, Value>) -> Option<Value> {
-    const ARGUMENT_KEYS: [&str; 5] = ["arguments", "input", "arguments_json", "parsed_arguments", "args"];
+    const ARGUMENT_KEYS: [&str; 5] = [
+        "arguments",
+        "input",
+        "arguments_json",
+        "parsed_arguments",
+        "args",
+    ];
     for key in ARGUMENT_KEYS {
         let Some(value) = item_obj.get(key) else {
             continue;
@@ -1621,7 +2222,8 @@ mod tests {
         );
         let (body, usage) = collect_non_stream_json_from_sse_bytes(sse.as_bytes());
         let body = body.expect("synthesized response json");
-        let value: serde_json::Value = serde_json::from_slice(&body).expect("parse synthesized body");
+        let value: serde_json::Value =
+            serde_json::from_slice(&body).expect("parse synthesized body");
         assert_eq!(value["id"], "resp_1");
         assert_eq!(value["output"][0]["role"], "assistant");
         assert_eq!(usage.input_tokens, Some(7));
